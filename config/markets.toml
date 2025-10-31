@@ -1,0 +1,11 @@
+[[phoenix]]
+name = "SOL/USDC"
+base_mint = "So11111111111111111111111111111111111111112"
+quote_mint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+min_spread_bps = 15.0
+
+[[openbook]]
+name = "BONK/USDC"
+base_mint = "DezXAZ8z7P7sJxRJWbKQx6zh2n63jH4QhQ8CkSwyjax"
+quote_mint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+min_spread_bps = 25.0
