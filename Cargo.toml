@@ -1,0 +1,17 @@
+[workspace]
+members = ["toon"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "Apache-2.0"
+
+[patch.crates-io]
+phoenix-sdk = { path = "third-parties/phoenix-sdk" }
+openbook-dex = { path = "third-parties/openbook-dex" }
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+panic = "abort"
+strip = true

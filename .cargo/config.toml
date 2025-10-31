@@ -1,0 +1,13 @@
+[build]
+rustflags = [
+  "-C", "target-cpu=native",
+  "-C", "link-arg=-fuse-ld=lld",
+]
+
+[target.'cfg(target_os = "macos")']
+rustflags = [
+  "-C", "target-cpu=native",
+]
+
+[env]
+RUSTDOCFLAGS = "-C target-cpu=native"

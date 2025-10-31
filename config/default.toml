@@ -1,0 +1,8 @@
+[cluster]
+rpc_url = "https://api.mainnet-beta.solana.com"
+ws_url = "wss://api.mainnet-beta.solana.com"
+compute_unit_price_micro_lamports = 120000
+
+[accounts]
+authority = "replace-with-authority-pubkey"
+payer = "replace-with-payer-pubkey"
