@@ -1,6 +1,7 @@
-# SPRINT-003D — Exécution DEX (hedge CLOB + CLMM)
+# SPRINT-003D — Exécution DEX (hedge CLOB + CLMM) `[P0]`
 
 > **But :** envoyer les ordres de couverture côté DEX immédiatement après l'exécution CEX pour neutraliser l'exposition.
+> **Priorité** : **P0** — inclut ComputeBudget + priority fees (sans Jito) et hedge même venue CEX pour sécuriser la position.
 
 ## Pré-requis
 - SPRINT-002C (CLOB), SPRINT-002D (CLMM) et SPRINT-003B (scanner) validés.

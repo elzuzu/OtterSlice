@@ -1,6 +1,7 @@
-# EPIC-003 — Décision & exécution arbitrage
+# EPIC-003 — Décision & exécution arbitrage `[P0]`
 
 > **But global :** convertir les données d'ingestion en signaux exploitables puis en ordres coordonnés CEX↔DEX tout en respectant les limites de risque.
+> **Priorité** : **P0** — composante cœur métier : aucun lancement sans scanner net_fees et exécution fiable (IOC/FAK, hedge DEX).
 
 ## Résultats attendus
 - Scanner des spreads net-frais configuré et éprouvé (tests de charge >500 updates/s).

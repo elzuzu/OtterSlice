@@ -1,17 +1,18 @@
-# EPIC-004 — Gestion du risque & monitoring
+# EPIC-004 — Gestion du risque & monitoring `[P0 ⟶ P1]`
 
 > **But :** encadrer l'exécution via des contrôles pre-trade, une visibilité temps réel et des mécanismes d'arrêt d'urgence.
+> **Priorité** : périmètre **P0** pour le pré-trade (SPRINT-004A) et le kill-switch (SPRINT-004C) ; **P1** pour le monitoring complet (SPRINT-004B) et les alertes.
 
 ## Résultats attendus
-- Contrôles pre-trade appliqués à chaque opportunité (caps, balances, spread minimum).
-- Monitoring en place : métriques Prometheus + dashboard Grafana + alertes Slack.
-- Kill-switch fonctionnel avec runbook détaillé et intégration dans tous les modules.
+- **[P0]** Contrôles pre-trade appliqués à chaque opportunité (caps notionnels, balances, spread minimum, exposition net).
+- **[P1]** Monitoring en place : métriques Prometheus + dashboard Grafana + alertes Slack/webhook.
+- **[P0]** Kill-switch fonctionnel avec runbook détaillé et intégration dans tous les modules.
 - Journaux de sprint `docs/logs/sprint-004X.md` complétés avec preuves (captures, logs, tests).
 
 ## Sprints
-1. **SPRINT-004A — Contrôles pre-trade & allocation**.
-2. **SPRINT-004B — Monitoring temps réel & alerting**.
-3. **SPRINT-004C — Kill-switch & incidents**.
+1. **[P0] SPRINT-004A — Contrôles pre-trade & allocation**.
+2. **[P1] SPRINT-004B — Monitoring temps réel & alerting**.
+3. **[P0] SPRINT-004C — Kill-switch & incidents**.
 
 ## Dépendances
 - Repose sur EPIC-003 (exécution) pour les rapports d'ordres.

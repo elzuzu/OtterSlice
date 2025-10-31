@@ -1,6 +1,7 @@
-# SPRINT-002A — Connecteurs CEX REST/WS
+# SPRINT-002A — Connecteurs CEX REST/WS `[P0]`
 
 > **Public visé :** développeur junior découvrant les APIs CEX. Toutes les étapes sont détaillées pour éviter les confusions.
+> **Priorité** : **P0** — fournir des connecteurs REST/WS (HMAC, throttling) avant toute reconstruction d'ordre book ou scanner.
 
 ## Préparation avant de coder
 - Lis les pages officielles d'API :

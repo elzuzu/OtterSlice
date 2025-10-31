@@ -1,6 +1,7 @@
-# SPRINT-002D — Quoteur CLMM (Orca Whirlpools & Raydium Concentrated)
+# SPRINT-002D — Quoteur CLMM (Orca Whirlpools & Raydium Concentrated) `[P0]`
 
 > **But :** construire un moteur local qui calcule les quotes de swap pour les pools concentrés sans dépendre d'APIs externes.
+> **Priorité** : **P0** — indispensable pour estimer les coûts DEX (fees + slippage) dans le scanner et les contrôles pre-trade.
 
 ## Pré-requis
 - SPRINT-001B terminé.

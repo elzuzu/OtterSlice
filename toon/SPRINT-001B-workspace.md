@@ -1,6 +1,7 @@
-# SPRINT-001B — Bootstrap workspace & configuration TOML
+# SPRINT-001B — Bootstrap workspace & configuration TOML `[P0]`
 
 > **Important :** ne saute aucune instruction. Ce sprint doit aboutir à un workspace Rust compilable avec un `cargo build --release` documenté.
+> **Priorité** : **P0** — bloque toute ingestion/exécution si non livré (workspace, overrides `[patch.crates-io]`).
 
 ## Ce que tu dois avoir terminé avant de commencer
 - SPRINT-001A validé, y compris le fichier `docs/logs/sprint-001A.md` et la capture du trousseau.

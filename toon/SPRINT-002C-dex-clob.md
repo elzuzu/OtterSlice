@@ -1,6 +1,7 @@
-# SPRINT-002C — Drivers DEX CLOB (Phoenix & OpenBook v2)
+# SPRINT-002C — Drivers DEX CLOB (Phoenix & OpenBook v2) `[P0]`
 
 > **Objectif :** fournir un module unique capable de lire les carnets Phoenix/OpenBook et d'envoyer des ordres IOC/FAK. Pas de raccourci : suis chaque étape.
+> **Priorité** : **P0** — requis pour observer best bid/ask DEX et tester les ordres dry-run avant hedge réel.
 
 ## Pré-requis
 - SPRINT-001B : workspace prêt.

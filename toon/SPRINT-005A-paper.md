@@ -1,6 +1,7 @@
-# SPRINT-005A — Mode paper trading temps réel
+# SPRINT-005A — Mode paper trading temps réel `[P0]`
 
 > **But :** exécuter la stratégie en conditions quasi réelles sans envoyer d'ordres live, en journalisant chaque décision.
+> **Priorité** : **P0** — run 60–72 h obligatoire avec KPIs (hit-rate ≥ 35 %, p95 ≤ 6 bps, PnL net ≥ 10 bps/j) avant Go/No-Go.
 
 ## Pré-requis
 - Tous les sprints précédents jusqu'à EPIC-004 validés (scanner, exécution, monitoring, kill-switch).

@@ -1,6 +1,7 @@
-# SPRINT-003B — Scanner d'opportunités net-frais
+# SPRINT-003B — Scanner d'opportunités net-frais `[P0]`
 
 > **Objectif :** parcourir en continu les books CEX/DEX pour calculer le spread net des frais et déclencher un signal exploitable.
+> **Priorité** : **P0** — pivot décisionnel : la règle `net_spread ≥ fees + gas_bps + slip_exp + marge` doit être appliquée avant toute exécution.
 
 ## Pré-requis
 - SPRINT-002B (reconstructeur CEX), SPRINT-002C (CLOB), SPRINT-002D (CLMM) et SPRINT-003A (frais) finalisés.
