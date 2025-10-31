@@ -1,71 +1,74 @@
-# SPRINT-003C — Exécution CEX (Binance/OKX/Bybit) `[P0]`
+**Directive Claude (à respecter à la lettre)**
 
-> **But :** transformer une opportunité en ordres effectifs côté CEX en respectant les contraintes de risque et de latence.
-> **Priorité** : **P0** — obligations : ordres IOC/FAK, slicing p95, retry/backoff, latence mesurée et fiable.
+* Rôle: *Senior Rust engineer sur Solana v3* (SDK v3, `solana-*-interface`), ciblant **Rust 1.90** sur **macOS M-series**.
+* **Génère du code finalisé, zéro placeholder**: **interdit** d’émettre `todo!()`, `unimplemented!()`, `panic!()` non justifiés, sections vides, “exemples à adapter” ou pseudocode.
+* **Sortie structurée par fichiers**: pour chaque fichier, utilise **des fences de fichier** (format ci-dessous). Un fichier = contenu intégral.
+* **Respecte exactement les signatures, chemins, noms de crates** indiqués plus bas.
+* **N’ajoute aucune dépendance** non listée; **Rust stable 1.90 uniquement**.
+* Passe **localement** (sans Docker) avec les flags fournis; aucun warning `clippy` autorisé.
+* Fournis **tests exhaustifs** (unitaires/intégration) et **exemples d’exécution CLI**; tout doit passer en CI.
 
-## Pré-requis
-- SPRINT-002A (connecteurs) et SPRINT-003B (scanner) terminés.
-- Clés API actives avec permission "trade" (pas de withdraw).
-- Compte test ou sous-compte avec fonds démo.
+Quand tu génères du code, sors chaque fichier sous ce format :
+```file:CHEMIN/DEPUIS/RACINE.rs
+// contenu entier du fichier, prêt à compiler
+```
 
-## Livrables
-1. Module `crates/exec/src/cex.rs` exposant :
-   - `pub struct ExecutionRequest { exchange: Exchange, symbol: String, side: Side, quantity: f64, price: f64, post_only: bool }`
-   - `pub async fn execute(request: ExecutionRequest) -> Result<ExecutionReport>`
-   - Gestion des ordres `IOC`/`FOK` + cancel on timeout.
-2. Implémentation de la signature HMAC + header spécifique pour chaque exchange.
-3. Tests d'intégration "paper" : simulateur qui répond avec fills partiels.
-4. CLI `cargo run -p cli -- --mode dry-run-cex --exchange binance --symbol SOLUSDT --side buy --qty 10`.
+Ne mets **aucun autre texte** entre les blocs `file:`. Termine par un récapitulatif.
 
-## Étapes guidées
-1. **Compléter les structures**
-   - `ExecutionReport` doit inclure : `order_id`, `status` (`Filled`, `PartiallyFilled`, `Cancelled`, `Rejected`), `executed_qty`, `avg_price`, `fills` (Vec avec `qty`, `price`, `fee`), `latency_ms`.
-2. **Gérer les particularités API**
-   - Binance : endpoint `POST /api/v3/order` (paramètres `type=LIMIT_MAKER` pour post-only, `timeInForce=IOC` sinon). Ajoute `timestamp` + `recvWindow` 5000.
-   - OKX : endpoint `POST /api/v5/trade/order` (payload JSON). Inclure `OK-ACCESS-PASSPHRASE`.
-   - Bybit : endpoint `POST /v5/order/create`. Gère le `category=spot`.
-3. **Signer les requêtes**
-   - Crée un helper `fn sign_binance(params: &HashMap<&str, String>, secret: &str) -> String`.
-   - Pour OKX/Bybit, signature basée sur `timestamp + method + path + body`.
-   - Ajoute des tests unitaires avec exemples officiels (copie les valeurs depuis la doc pour vérifier que le hash correspond).
-4. **Gestion des timeouts et retries**
-   - Utilise `tokio::time::timeout(Duration::from_millis(800), client.send())`.
-   - Si timeout, envoie un `cancel`.
-   - Réessaie au maximum 2 fois sur erreurs réseau (`reqwest::Error::is_connect()`/`is_timeout()`).
-5. **Parse des réponses**
-   - Convertis en structures `serde` :
-     ```rust
-     #[derive(Deserialize)]
-     struct BinanceOrderResponse {
-         orderId: u64,
-         status: String,
-         fills: Vec<BinanceFill>,
-     }
-     ```
-   - Mappe `status` vers ton enum.
-6. **Enrichir le rapport**
-   - Calculer `latency_ms` = `Instant::now() - start`.
-   - Agréger `executed_qty` en additionnant les fills.
-   - Calcule `avg_price` pondéré.
-7. **Tests**
-   - `tests/binance_signature.rs` : vérifie la signature.
-   - `tests/execution_sim.rs` : utilise `wiremock` pour simuler un fill partiel puis cancel.
-   - Ajoute un test `#[ignore]` pour un ordre réel sur testnet Binance (utilise l'URL testnet `https://testnet.binance.vision`).
-8. **CLI Dry run**
-   - Mode `dry-run-cex` qui affiche la requête signée sans l'envoyer (option `--send` pour exécuter réellement).
-   - Ajoute un paramètre `--timeout-ms`.
-   - Capture la sortie dans `docs/logs/sprint-003C.md`.
+# SPRINT-003C — Exécution CEX `[P0]`
 
-## Critères d'acceptation
-- ✅ `cargo test -p exec cex` passe.
-- ✅ Mode `dry-run-cex` affiche la signature et la requête HTTP.
-- ✅ En mode `--send` (sur testnet), un ordre `IOC` est rempli ou rejeté avec un message clair.
-- ✅ Journal complété avec captures.
+## Objectifs
+- Implémenter `CexExecutor` pour Binance/OKX/Bybit utilisant clients du SPRINT-002A.
+- Respecter mapping IOC/FAK/FOK (table EPIC-003) sans dépendances supplémentaires.
+- Gérer latence `detection→hedge_ack <= 1s` (logs `latency_ms`).
 
-## Dépendances
-- Reçoit les signaux du scanner (SPRINT-003B) et enverra les résultats au module hedge (SPRINT-003D).
+## API
+```rust
+pub struct CexExecutor<'a> {
+    rest: &'a RestClient,
+}
 
-## Points d'attention
-- Vérifie toujours les limites de poids (Binance `X-MBX-USED-WEIGHT-1M`). Si > 90% loggue `warn`.
-- Ne loggue jamais les clés API (masque avec `***`).
-- Traite explicitement les codes d'erreur (ex: `-2010` insuffisance de fonds → remonte `ExecutionError::InsufficientBalance`).
+impl<'a> CexExecutor<'a> {
+    pub async fn place(&self, plan: &ExecutionPlan) -> Result<CexExecution, ExecutionError>;
+}
+
+pub struct CexExecution {
+    pub order_id: String,
+    pub filled_qty: Decimal,
+    pub avg_price: Decimal,
+    pub latency_ms: u64,
+}
+```
+
+## Tâches
+1. Mapper `ExecutionPlan.time_in_force` vers paramètres API (IOC/FAK/FOK).
+2. Signer requêtes via fonctions SPRINT-002A.
+3. Vérifier dérive horloge `< 500 ms` avant envoi (`/time`).
+4. Log `INFO` `cex_order_submitted` + `cex_order_filled`.
+5. Si `status = FILLED` → succès; `status = PARTIALLY_FILLED` + TIF FOK → `ExecutionError::Rejected`.
+
+## Tests
+- `execution/tests/cex_executor.rs` : mocks HTTP (WireMock) pour codes `429`, `51009`, `30005`.
+- `execution/tests/latency.rs` : mesurer latence < 1 s.
+- `execution/tests/time_sync.rs` : offset > 500 ms → `ExecutionError::ClockSkew`.
+
+## Bench
+- `cargo bench -p execution --bench cex_executor -- --plans 200` throughput ≥ 200 plans/s.
+
+## Exemples valides/invalides
+- ✅ Journal `docs/logs/sprint-003C.md` contient latence moyenne.
+- ❌ `panic!()` pour erreurs API.
+
+## Checklist de validation
+- Tests & bench OK.
+- `just ci` passe.
+- Logs alignés (timezone UTC).
+
+---
+
+✅ `cargo build --release` (Rust **1.90**), **0 warnings**: `cargo clippy -D warnings`.
+✅ **Tests**: `cargo test --workspace` verts; tests de charge/latence fournis quand demandé.
+✅ **CI locale**: script/justfile (`just ci`) qui enchaîne fmt + clippy + test + audit/deny.
+✅ **Aucun** `todo!()`, `unimplemented!()`, `panic!()` ou commentaires “à faire plus tard”.
+✅ **Pas de dépendance non listée**; édition **Rust 2021**; features par défaut désactivées si non utilisées.
+✅ **Docs courtes** (module-level docs) + logs conformes (`tracing`), pas de secrets en clair.

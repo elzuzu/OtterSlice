@@ -1,59 +1,61 @@
-# SPRINT-003D — Exécution DEX (hedge CLOB + CLMM) `[P0]`
+**Directive Claude (à respecter à la lettre)**
 
-> **But :** envoyer les ordres de couverture côté DEX immédiatement après l'exécution CEX pour neutraliser l'exposition.
-> **Priorité** : **P0** — inclut ComputeBudget + priority fees (sans Jito) et hedge même venue CEX pour sécuriser la position.
+* Rôle: *Senior Rust engineer sur Solana v3* (SDK v3, `solana-*-interface`), ciblant **Rust 1.90** sur **macOS M-series**.
+* **Génère du code finalisé, zéro placeholder**: **interdit** d’émettre `todo!()`, `unimplemented!()`, `panic!()` non justifiés, sections vides, “exemples à adapter” ou pseudocode.
+* **Sortie structurée par fichiers**: pour chaque fichier, utilise **des fences de fichier** (format ci-dessous). Un fichier = contenu intégral.
+* **Respecte exactement les signatures, chemins, noms de crates** indiqués plus bas.
+* **N’ajoute aucune dépendance** non listée; **Rust stable 1.90 uniquement**.
+* Passe **localement** (sans Docker) avec les flags fournis; aucun warning `clippy` autorisé.
+* Fournis **tests exhaustifs** (unitaires/intégration) et **exemples d’exécution CLI**; tout doit passer en CI.
 
-## Pré-requis
-- SPRINT-002C (CLOB), SPRINT-002D (CLMM) et SPRINT-003B (scanner) validés.
-- Compte Solana devnet avec fonds (`solana airdrop 10` deux fois si besoin).
+Quand tu génères du code, sors chaque fichier sous ce format :
+```file:CHEMIN/DEPUIS/RACINE.rs
+// contenu entier du fichier, prêt à compiler
+```
 
-## Livrables
-1. Module `crates/exec/src/dex.rs` exposant :
-   - `pub enum DexVenue { Phoenix, OpenBook, Orca, Raydium }`
-   - `pub struct HedgeRequest { venue: DexVenue, market: MarketInfo, side: Side, base_amount: f64, limit_price: f64 }`
-   - `pub async fn execute(request: HedgeRequest) -> Result<HedgeReport>`
-2. Gestion du `ComputeBudget` et de la priorité des transactions.
-3. Tests d'intégration sur devnet (flag `#[ignore]`).
-4. CLI `cargo run -p cli -- --mode dry-run-dex --venue phoenix --market SOL/USDC --side sell --size 5`.
+Ne mets **aucun autre texte** entre les blocs `file:`. Termine par un récapitulatif.
 
-## Étapes guidées
-1. **Préparer les dépendances**
-   - Dans `Cargo.toml` de `exec`, ajoute `solana-client`, `solana-sdk`, `spl-token`, `spl-associated-token-account`.
-   - Réutilise les helpers du sprint 002C/002D (imports via `crate::dex_clob`, `crate::dex_clmm`).
-2. **Construire les transactions**
-   - Phoenix/OpenBook : assemble un `Transaction` avec l'instruction `place_order`. Ajoute `ComputeBudgetInstruction::set_compute_unit_limit(400_000)`.
-   - Orca/Raydium : appelle la fonction `swap_exact_in` générée depuis l'IDL.
-   - Ajoute `recent_blockhash` via `rpc_client.get_latest_blockhash()`.
-3. **Signer**
-   - Utilise la clé `~/.config/otterslice/dev.json` (charge via `read_keypair_file`).
-   - Ajoute la possibilité d'injecter un signer custom (tests).
-4. **Envoyer & confirmer**
-   - Utilise `rpc_client.send_and_confirm_transaction_with_spinner_and_config` avec `CommitmentConfig::confirmed()`.
-   - Si la transaction échoue, récupère les logs (`simulate_transaction`) et remonte une erreur lisible.
-5. **HedgeReport**
-   - Champs : `signature`, `status` (`Submitted`, `Confirmed`, `Finalized`, `Failed`), `slot`, `fills_estimated`, `fees_paid` (en lamports), `latency_ms`.
-6. **Tests**
-   - `tests/dry_run.rs` : simule la génération d'une transaction et vérifie que les comptes requis sont présents.
-   - `tests/devnet.rs` (ignored) : envoie un swap 0.1 SOL → USDC et vérifie que `status == Confirmed`.
-7. **CLI**
-   - Mode `dry-run-dex` affiche la transaction base64 et les instructions.
-   - Option `--send` pour exécuter (devnet). Ajoute `--priority-fee 5000`.
-   - Consigne la signature dans `docs/logs/sprint-003D.md`.
-8. **Coordination avec CEX**
-   - Ajoute une fonction `pub async fn hedge_after_cex(report: ExecutionReport, hedge_req: HedgeRequest)` qui attend `report.status == Filled` avant d'envoyer la couverture.
-   - Gère le cas partiellement rempli : ajuster `base_amount` à `report.executed_qty`.
+# SPRINT-003D — Hedge DEX `[P0]`
 
-## Critères d'acceptation
-- ✅ `cargo test -p exec dex` passe (hors tests `#[ignore]`).
-- ✅ Mode CLI `dry-run-dex` produit une transaction avec `ComputeBudget` en première instruction.
-- ✅ Test devnet (manuel) confirme une transaction.
-- ✅ Journal rempli avec signature + logs.
+## Objectifs
+- Construire transactions Phoenix/OpenBook/Orca/Raydium avec instructions ComputeBudget v3 en tête.
+- Respecter latence `détection→exec→hedge <= 1 s` (logs partagés avec SPRINT-003C).
+- Mapper codes d’erreur en enums typed (`ExecutionError`).
 
-## Dépendances
-- Reçoit l'opportunité du scanner et le rapport CEX (SPRINT-003C).
-- Sera utilisé par SPRINT-004A (pre-trade risk) et SPRINT-004B (monitoring).
+## Pipeline transaction Solana
+1. Préparer `ComputeBudgetInstruction::set_compute_unit_limit(150_000)` puis `set_compute_unit_price(config.compute_price_micro_lamports)`.
+2. Ajouter instructions DEX (Phoenix `place_order`, OpenBook `new_order_v3`, Orca `swap`, Raydium `swap_base_in`).
+3. Signer via `Keypair` local; logs `tx_signature`.
+4. Soumettre via RPC `send_transaction` (timeout 500 ms, 3 retries exponential backoff).
 
-## Points d'attention
-- Vérifie la disponibilité des comptes token : crée-les si besoin via `spl_associated_token_account::create_associated_token_account`.
-- Sur Orca, certaines transactions requièrent `tick_array` : précharge-les.
-- Ajoute un mode `simulate` qui appelle `simulate_transaction` avant envoi réel pour obtenir le gas estimé.
+## Tâches
+- Implémenter `DexHedger::submit(plan: &ExecutionPlan) -> Result<DexExecution, ExecutionError>`.
+- Supporter overrides config (`config/dex/hedge.toml`) pour compute limit/price.
+- Journaliser latence `dex_tx_latency_ms`.
+- Coder enums d’erreur : `InsufficientLiquidity`, `SlippageExceeded`, `AccountMismatch`.
+
+## Tests
+- `execution/tests/dex_compute_budget.rs` : ordre des instructions.
+- `execution/tests/dex_error_mapping.rs` : map codes (Phoenix `OrdersAreLocked`, OpenBook `0x1770`, Orca `0x12c`, Raydium `0x1f4`).
+- `execution/tests/dex_latency.rs` : latence < 1 s.
+
+## Bench
+- `cargo bench -p execution --bench dex_pipeline -- --plans 200` throughput ≥ 150 plans/s.
+
+## Exemples valides/invalides
+- ✅ `docs/logs/sprint-003D.md` contient exemple transaction (signature + latence).
+- ❌ Oubli ComputeBudget instructions.
+
+## Checklist de validation
+- Tests & bench OK.
+- `just ci` passe.
+- Config `config/dex/hedge.toml` versionnée avec valeurs par défaut.
+
+---
+
+✅ `cargo build --release` (Rust **1.90**), **0 warnings**: `cargo clippy -D warnings`.
+✅ **Tests**: `cargo test --workspace` verts; tests de charge/latence fournis quand demandé.
+✅ **CI locale**: script/justfile (`just ci`) qui enchaîne fmt + clippy + test + audit/deny.
+✅ **Aucun** `todo!()`, `unimplemented!()`, `panic!()` ou commentaires “à faire plus tard”.
+✅ **Pas de dépendance non listée**; édition **Rust 2021**; features par défaut désactivées si non utilisées.
+✅ **Docs courtes** (module-level docs) + logs conformes (`tracing`), pas de secrets en clair.

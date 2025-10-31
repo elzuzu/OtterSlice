@@ -1,59 +1,48 @@
-# SPRINT-005A — Mode paper trading temps réel `[P0]`
+**Directive Claude (à respecter à la lettre)**
 
-> **But :** exécuter la stratégie en conditions quasi réelles sans envoyer d'ordres live, en journalisant chaque décision.
-> **Priorité** : **P0** — run 60–72 h obligatoire avec KPIs (hit-rate ≥ 35 %, p95 ≤ 6 bps, PnL net ≥ 10 bps/j) avant Go/No-Go.
+* Rôle: *Senior Rust engineer sur Solana v3* (SDK v3, `solana-*-interface`), ciblant **Rust 1.90** sur **macOS M-series**.
+* **Génère du code finalisé, zéro placeholder**: **interdit** d’émettre `todo!()`, `unimplemented!()`, `panic!()` non justifiés, sections vides, “exemples à adapter” ou pseudocode.
+* **Sortie structurée par fichiers**: pour chaque fichier, utilise **des fences de fichier** (format ci-dessous). Un fichier = contenu intégral.
+* **Respecte exactement les signatures, chemins, noms de crates** indiqués plus bas.
+* **N’ajoute aucune dépendance** non listée; **Rust stable 1.90 uniquement**.
+* Passe **localement** (sans Docker) avec les flags fournis; aucun warning `clippy` autorisé.
+* Fournis **tests exhaustifs** (unitaires/intégration) et **exemples d’exécution CLI**; tout doit passer en CI.
 
-## Pré-requis
-- Tous les sprints précédents jusqu'à EPIC-004 validés (scanner, exécution, monitoring, kill-switch).
-- Disponibilité d'un flux de marché stable (CEX/DEX).
+Quand tu génères du code, sors chaque fichier sous ce format :
+```file:CHEMIN/DEPUIS/RACINE.rs
+// contenu entier du fichier, prêt à compiler
+```
 
-## Livrables
-1. Module `crates/paper/src/lib.rs` exposant :
-   - `pub struct PaperEngine { recorder: CsvWriter, position_tracker: PositionTracker }`
-   - `pub async fn run(duration: Duration, config: PaperConfig) -> Result<()>`
-   - Simulation des ordres CEX/DEX à partir du scanner (latence configurable).
-2. Fichier `docs/reports/paper_template.md` (template de rapport journalier) à compléter.
-3. CLI `cargo run -p cli -- --mode paper --duration 3600 --output logs/paper.csv`.
+Ne mets **aucun autre texte** entre les blocs `file:`. Termine par un récapitulatif.
 
-## Étapes guidées
-1. **Définir la configuration**
-   - `struct PaperConfig { latency_cex_ms: u64, latency_dex_ms: u64, fill_ratio: f64, slippage_bps: f64 }`.
-   - Charger depuis `config/default.toml` (section `[paper]`).
-2. **Brancher le scanner**
-   - Réutilise `Scanner` (SPRINT-003B). Lorsque le scanner envoie une opportunité, crée deux ordres simulés.
-3. **Simuler les fills**
-   - Utilise les carnets actuels pour estimer l'exécution :
-     - CEX : consomme les niveaux jusqu'à `size`. Applique `fill_ratio` (ex : 0.85 signifie 85% rempli).
-     - DEX : consomme le CLOB ou utilise `quote_clmm`.
-   - Applique la latence : `tokio::time::sleep(Duration::from_millis(latency_cex_ms))` avant de "remplir".
-4. **Position tracking**
-   - `PositionTracker` maintient `inventory_sol`, `inventory_usdc`, `pnl_usd`, `max_drawdown_usd`.
-   - Après chaque trade, met à jour la position et calcule le PnL.
-5. **Enregistrement CSV**
-   - Colonnes : `timestamp,market,signal_spread_bps,fill_ratio,notional,cex_price,dex_price,pnl_usd,inventory_sol`.
-   - Utilise `csv::Writer`.
-6. **Alertes**
-   - Si `max_drawdown_usd` dépasse un seuil (config), loggue `ERROR` et déclenche `KillSwitch::arm()` (simulateur).
-7. **Tests**
-   - `test_simulated_fill`: opportunité 50 bps, notional 1000, `fill_ratio=1.0` → `pnl_usd` positif.
-   - `test_drawdown_trigger`: pertes cumulées > seuil → kill-switch armé.
-8. **CLI**
-   - Mode `paper` : permet `--duration`, `--latency-cex`, `--latency-dex`, `--fill-ratio`.
-   - Affiche un résumé toutes les 60s (`trades=xx, pnl=yy, drawdown=zz`).
-9. **Rapport**
-   - Remplis `docs/reports/paper_template.md` avec sections : Résumé, Hypothèses, Résultats, Incidents.
-   - Journal `docs/logs/sprint-005A.md` : capture CSV + résumé CLI.
+# SPRINT-005A — Paper trading `[P1]`
 
-## Critères d'acceptation
-- ✅ `cargo test -p paper` passe.
-- ✅ `cargo run -p cli -- --mode paper --duration 120` génère un fichier CSV non vide.
-- ✅ Rapport `paper_template.md` complété avec au moins un exemple de run.
-- ✅ Journal complété.
+## Objectifs
+- Lancer `toon run --mode paper --from 2024-01-01T00:00:00Z --to 2024-01-03T23:59:59Z --dataset data/paper/btc_usdt_72h.parquet` et collecter métriques.
+- Produire rapport `docs/reports/paper.md` (structure EPIC-005) + CSV `docs/reports/paper_metrics.csv`.
+- Générer histogramme latence `docs/reports/paper_latency.png` (bin 10 ms).
 
-## Dépendances
-- Fournit les données pour SPRINT-005B (calibration & analyse post-run).
+## Tâches
+1. Implémenter `PaperEngine` lisant dataset Parquet via `parquet` crate (déjà dépendance? sinon utiliser arrow2?). Ne pas ajouter dépendance non listée → utiliser `parquet` existante si déjà.
+2. Enregistrer métriques `win_rate`, `avg_edge_bps`, `latency_ms_p50/p95`, `slippage_bps_p95`, `notional_turnover`.
+3. Exporter CSV (colonnes `metric,value,window_start,window_end`).
+4. Actualiser rapport Markdown : sections `Résumé exécutif`, `Métriques`, `Incidents`, `Recommandations`.
+5. Commande `just paper` doit encapsuler exécution + génération rapport.
 
-## Points d'attention
-- Utilise `chrono::Utc::now()` pour timestamp (ISO8601).
-- Nettoie les fichiers CSV précédents (`truncate` avant d'écrire) pour éviter les doublons.
-- Garde le mode paper isolé : aucune fonction ne doit appeler directement les exécutors live.
+## Exemples valides/invalides
+- ✅ Rapport contient référence commit (`git rev-parse HEAD`).
+- ❌ Rapport sans section incidents.
+
+## Checklist de validation
+- `just paper` produit fichiers sans diff local non commit.
+- `docs/logs/paper-trading.md` contient sortie CLI.
+- `cargo test -p paper` (tests unitaires sur metrics) passe.
+
+---
+
+✅ `cargo build --release` (Rust **1.90**), **0 warnings**: `cargo clippy -D warnings`.
+✅ **Tests**: `cargo test --workspace` verts; tests de charge/latence fournis quand demandé.
+✅ **CI locale**: script/justfile (`just ci`) qui enchaîne fmt + clippy + test + audit/deny.
+✅ **Aucun** `todo!()`, `unimplemented!()`, `panic!()` ou commentaires “à faire plus tard”.
+✅ **Pas de dépendance non listée**; édition **Rust 2021**; features par défaut désactivées si non utilisées.
+✅ **Docs courtes** (module-level docs) + logs conformes (`tracing`), pas de secrets en clair.

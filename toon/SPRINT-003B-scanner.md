@@ -1,71 +1,69 @@
-# SPRINT-003B — Scanner d'opportunités net-frais `[P0]`
+**Directive Claude (à respecter à la lettre)**
 
-> **Objectif :** parcourir en continu les books CEX/DEX pour calculer le spread net des frais et déclencher un signal exploitable.
-> **Priorité** : **P0** — pivot décisionnel : la règle `net_spread ≥ fees + gas_bps + slip_exp + marge` doit être appliquée avant toute exécution.
+* Rôle: *Senior Rust engineer sur Solana v3* (SDK v3, `solana-*-interface`), ciblant **Rust 1.90** sur **macOS M-series**.
+* **Génère du code finalisé, zéro placeholder**: **interdit** d’émettre `todo!()`, `unimplemented!()`, `panic!()` non justifiés, sections vides, “exemples à adapter” ou pseudocode.
+* **Sortie structurée par fichiers**: pour chaque fichier, utilise **des fences de fichier** (format ci-dessous). Un fichier = contenu intégral.
+* **Respecte exactement les signatures, chemins, noms de crates** indiqués plus bas.
+* **N’ajoute aucune dépendance** non listée; **Rust stable 1.90 uniquement**.
+* Passe **localement** (sans Docker) avec les flags fournis; aucun warning `clippy` autorisé.
+* Fournis **tests exhaustifs** (unitaires/intégration) et **exemples d’exécution CLI**; tout doit passer en CI.
 
-## Pré-requis
-- SPRINT-002B (reconstructeur CEX), SPRINT-002C (CLOB), SPRINT-002D (CLMM) et SPRINT-003A (frais) finalisés.
-- Les modules doivent exposer des `watch::Receiver` pour les vues orderbook.
+Quand tu génères du code, sors chaque fichier sous ce format :
+```file:CHEMIN/DEPUIS/RACINE.rs
+// contenu entier du fichier, prêt à compiler
+```
 
-## Livrables
-1. Module `crates/engine/src/scanner.rs` exposant :
-   - `pub struct ScannerConfig { poll_interval_ms: u64, min_spread_bps: f64, warmup_ticks: usize }`
-   - `pub struct Opportunity { market: MarketPair, spread_bps: f64, net_spread_bps: f64, cex_side: Side, dex_side: Side, size: f64 }`
-   - `pub async fn run_scanner(cfg: ScannerConfig, channels: ScannerInputs, sender: mpsc::Sender<Opportunity>)`
-2. Intégration dans la CLI `cargo run -p cli -- --mode scan --duration 30s`.
-3. Tests unitaires + test de charge (bench) montrant que le scanner traite >500 updates/s sans backlog.
+Ne mets **aucun autre texte** entre les blocs `file:`. Termine par un récapitulatif.
 
-## Étapes guidées
-1. **Structurer les entrées**
-   - `ScannerInputs` contient : `cex_book: watch::Receiver<OrderBookView>`, `clob_book: watch::Receiver<ClobBook>`, `clmm_quote: watch::Receiver<QuoteResult>`, `fees: FeeBreakdown`.
-   - Implémente un builder pour simplifier l'injection lors des tests (`ScannerInputs::builder()`).
-2. **Boucle principale**
-   - Utilise `tokio::time::interval(Duration::from_millis(cfg.poll_interval_ms))`.
-   - À chaque tick :
-     - Lit la dernière valeur de chaque channel (`borrow().clone()`).
-     - Calcule la profondeur exécutable :
-       - CEX → consomme les niveaux jusqu'à `size_usd` (prend en compte `depth.bids` ou `depth.asks`).
-       - DEX CLOB → idem.
-       - CLMM → utilise `QuoteResult` pour la taille.
-     - Calcule `spread_bps = ((cex_price - dex_price) / dex_price) * 10_000` (ou inverse selon sens).
-     - `net_spread_bps = spread_bps - fees.total_bps`.
-   - Si `net_spread_bps >= cfg.min_spread_bps` et `warmup_ticks` dépassé, envoie une `Opportunity`.
-3. **Gestion du sens (CEX buy vs sell)**
-   - Détermine la meilleure combinaison `cex buy + dex sell` et `dex buy + cex sell`. Choisis la meilleure net spread.
-   - Stocke le sens choisi dans l'opportunité (`cex_side`, `dex_side`).
-4. **Limiter les faux positifs**
-   - Ajoute un filtre : n'envoie pas deux opportunités sur le même marché dans un intervalle < 500 ms (utilise `HashMap<MarketPair, Instant>`).
-   - Ajoute un `min_depth_usd` (ex: 100 USDC) pour ignorer les signaux trop faibles.
-5. **Tests unitaires**
-   - `test_positive_opportunity`: injecte des vues artificielles (prix CEX 55.5, DEX 55.0, fees 20 bps) → vérifie qu'une opportunité est envoyée.
-   - `test_negative_spread`: `net_spread_bps` < 0 → aucun message.
-   - `test_warmup`: premier `warmup_ticks` ignoré.
-   - Utilise `tokio::test` et `mpsc::channel(1)`.
-6. **Test de performance**
-   - Ajoute un bench (feature `bench`) ou un test `#[tokio::test]` avec 1000 updates en rafale. Mesure `elapsed` < 100 ms.
-7. **CLI**
-   - Mode `scan` :
-     ```bash
-     cargo run -p cli -- --mode scan --duration 30s --min-spread-bps 25
-     ```
-   - Affiche les opportunités sous forme de tableau (utilise `tabled` ou simple `println!`).
-   - Ajoute une option `--export opportunities.csv`.
-8. **Journal**
-   - `docs/logs/sprint-003B.md` :
-     - Sorties `cargo test -p engine scanner`.
-     - Capture d'un run CLI avec au moins une opportunité.
-     - Note les paramètres utilisés (poll interval, min spread).
+# SPRINT-003B — Scanner opportunités `[P0]`
 
-## Critères d'acceptation
-- ✅ Les tests scanner passent en < 2 s.
-- ✅ Le CLI affiche un minimum de 1 opportunité lors d'un test sur données mockées.
-- ✅ `opportunities.csv` contient les colonnes `timestamp,market,spread_bps,net_spread_bps,size`.
-- ✅ Journal complété avec evidence.
+## Objectifs
+- Consommer `OrderBookView` (CEX/DEX) et `ClobBook` pour détecter arbitrages.
+- Filtrer signaux : au moins `n_signaux = 3` occurrences sur fenêtre 60 s.
+- Supporter débit ≥ 500 updates/s sans backlog (`tokio::mpsc::channel(1024)`).
 
-## Dépendances
-- Les sorties alimentent SPRINT-003C (execution CEX) et SPRINT-003D (hedge DEX).
+## Pipeline
+1. Normaliser quotes en basis points (`edge_bps`).
+2. Appliquer filtres :
+   - `edge_bps >= 20` (warning) puis >= 70 (target).
+   - Vérifier `effective_fee_bps` (SPRINT-003A).
+   - Vérifier `slippage_estimate_bps <= 6`.
+3. Maintenir mémoire circulaire 60 s pour compter occurrences.
+4. Publier `ScannerSignal` :
+   ```rust
+   pub struct ScannerSignal {
+       pub opportunity_id: Uuid,
+       pub edge_bps: i32,
+       pub venue_in: Venue,
+       pub venue_out: Venue,
+       pub notional: Decimal,
+       pub occurrence_count: u32,
+       pub generated_at: DateTime<Utc>,
+   }
+   ```
 
-## Points d'attention
-- Utilise des `f64` mais garde un `Decimal` (via `rust_decimal`) pour éviter les erreurs cumulées si nécessaire.
-- Gère les `Option` : si un channel n'a pas encore publié ( `has_changed()` false ), skip le tick et loggue `tracing::debug!`.
-- Prépare des hooks pour la télémétrie (compteur du nombre d'opportunités, latence de calcul).
+## Tests
+- `scanner/tests/filtering.rs` : vecteurs (edge 10 → rejet, edge 80 + 3 occurrences → accept).
+- `scanner/tests/rate.rs` : simuler 600 updates/s, vérifier backlog 0 (`channel.len() == 0`).
+- `scanner/tests/window.rs` : 2 occurrences < 60 s → rejet.
+
+## Bench
+- `cargo bench -p scanner --bench pipeline -- --updates 1000` doit afficher `throughput >= 500/s`.
+
+## Exemples valides/invalides
+- ✅ Log `opportunity_id` + `edge_bps` dans `docs/logs/sprint-003B.md`.
+- ❌ Utilisation de `panic!()` pour un edge insuffisant.
+
+## Checklist de validation
+- Tests & bench OK.
+- `just ci` passe.
+- `docs/logs/sprint-003B.md` contient captures throughput.
+
+---
+
+✅ `cargo build --release` (Rust **1.90**), **0 warnings**: `cargo clippy -D warnings`.
+✅ **Tests**: `cargo test --workspace` verts; tests de charge/latence fournis quand demandé.
+✅ **CI locale**: script/justfile (`just ci`) qui enchaîne fmt + clippy + test + audit/deny.
+✅ **Aucun** `todo!()`, `unimplemented!()`, `panic!()` ou commentaires “à faire plus tard”.
+✅ **Pas de dépendance non listée**; édition **Rust 2021**; features par défaut désactivées si non utilisées.
+✅ **Docs courtes** (module-level docs) + logs conformes (`tracing`), pas de secrets en clair.

@@ -1,10 +1,30 @@
+**Directive Claude (à respecter à la lettre)**
+
+* Rôle: *Senior Rust engineer sur Solana v3* (SDK v3, `solana-*-interface`), ciblant **Rust 1.90** sur **macOS M-series**.
+* **Génère du code finalisé, zéro placeholder**: **interdit** d’émettre `todo!()`, `unimplemented!()`, `panic!()` non justifiés, sections vides, “exemples à adapter” ou pseudocode.
+* **Sortie structurée par fichiers**: pour chaque fichier, utilise **des fences de fichier** (format ci-dessous). Un fichier = contenu intégral.
+* **Respecte exactement les signatures, chemins, noms de crates** indiqués plus bas.
+* **N’ajoute aucune dépendance** non listée; **Rust stable 1.90 uniquement**.
+* Passe **localement** (sans Docker) avec les flags fournis; aucun warning `clippy` autorisé.
+* Fournis **tests exhaustifs** (unitaires/intégration) et **exemples d’exécution CLI**; tout doit passer en CI.
+
+Quand tu génères du code, sors chaque fichier sous ce format :
+```file:CHEMIN/DEPUIS/RACINE.rs
+// contenu entier du fichier, prêt à compiler
+```
+
+Ne mets **aucun autre texte** entre les blocs `file:`. Termine par un récapitulatif.
+
 # Plan de livraison TOON — Projet OtterSlice
+
+> **Rappel Claude Haiku 4.5** : modèle optimisé pour le coding agentique rapide/fiable, mais ne devine pas les non-dits. Spécifie toujours versions, chemins, signatures et seuils numériques. Utilise les sections "Exemples" et "Checklists" pour verrouiller les sorties.
 
 ## Vue d'ensemble
 - **Objectif** : Livrer un bot d'arbitrage CEX↔DEX (spot/perps) Solana 100 % fonctionnel, exécutable localement sur macOS Apple Silicon en Rust 1.90, sans agrégateur externe.
 - **Cadre technique** : architecture multi-crates définie dans `README.md`, dépendances Solana v1.18, DEX Phoenix/OpenBook/Orca/Raydium, CEX Binance/OKX/Bybit.
 - **Organisation** : 5 EPICs séquentielles, chacune découpée en sprints ≤ 2 jours avec instructions à pas fins pour un développeur débutant.
 - **Chemin critique** : EPIC-001 → EPIC-002 → EPIC-003 → EPIC-004 → EPIC-005. Aucun sprint ne peut commencer sans le quitus formel du précédent (journal + tests).
+- **Spec-as-code** : chaque ticket commence par la directive ci-dessus, inclut un bloc "fences de fichiers" et se termine par la DoD gatekeeper.
 
 ### Priorisation P0/P1/P2 (+Stretch)
 - **P0 — 100 % fonctionnel** : livrer une application exploitable et sûre couvrant les EPIC-001 à EPIC-003, le pré-trade & kill-switch de l'EPIC-004 et la campagne paper 60–72 h de l'EPIC-005.
@@ -38,66 +58,19 @@
 - SPRINT-005A paper trading 60–72 h avec KPIs : hit-rate ≥ 35 %, p95 ≤ 6 bps, PnL net ≥ 10 bps/j.
 
 **P1 — Hardening, opérabilité & perf (+10 %)**
-- SPRINT-004B monitoring `/metrics`, dashboard Grafana, alertes Slack/webhook.
-- SPRINT-005B calibration : analyse stats, rapport, mise à jour `config/*.toml`.
-- Ajouts DX/perf : auto-recovery WS (resubscribe + gap-fill), token-bucket RL affiné, failover RPC + backoff exp, autotune `compute_unit_price`, `justfile` build/paper/replay/PGO, CI fmt+clippy `-D warnings`+tests+audit/deny.
+- Monitoring exhaustif + webhook retries.
+- Auto-calibration + rapport diffable.
+- CI stricte (`just ci`, `cargo audit`, `cargo deny`, `grep` TODO/UNIMPLEMENTED/PANIC) sur chaque PR.
 
 **P2 — Qualité de signal & robustesse (+10 %)**
-- Occurrence filter & sizing adaptatif suivant profondeur.
-- Auto-calibration hebdo des seuils.
-- Replayer e2e (Parquet) pour qualification offline.
-- Redondance DEX par paire (Phoenix↔OpenBook ou Orca↔Raydium).
-- TUI opérateur minimal (`toon/`).
+- Replayer Parquet, auto-calibration adaptative, TUI opérateur.
+- Failover RPC, priorisation ComputeBudget dynamique.
 
-**Stretch (130–140 %)**
-- Hedge on-chain Drift (paper puis faible nominal).
-- PID simple pour auto-throttle compute units/priority fees.
-- Watchdogs horloge/RPC health/écart PnL vs attendu + alertes locales.
+---
 
-## Milestones & artefacts attendus
-| Milestone | Priorité | Condition de passage | Artefacts à archiver |
-| --- | --- | --- | --- |
-| M1 | P0 | `cargo build --release` réussi + journaux 001A/001B | captures toolchain, log build |
-| M2 | P0 | Latence ingestion mesurée, replay diffs validé | `docs/logs/latency-benchmark.md`, diagrammes PlantUML |
-| M3 | P0 | Scanner + exécution CEX/DEX démontrés en CLI | sorties CLI, tests exec, `opportunities.csv` |
-| M4 | P1 | Monitoring opérationnel + kill-switch testé | capture `/metrics`, dashboard Grafana, runbook signé |
-| M5 | P1 | Paper trading 72 h + rapport calibration | CSV datés, notebook, rapport signé |
-
-## Règles d'exécution (à rappeler dans chaque sprint)
-1. Toujours travailler sur macOS Apple Silicon, `rustup default 1.90.0`.
-2. Copier/coller les commandes indiquées, ne pas improviser.
-3. Documenter **toutes** les sorties dans `docs/logs/SPRINT-XXX.md` + ajouter captures si demandé.
-4. Ne jamais commiter de secrets (utiliser Keychain via `keyring`).
-5. Chaque sprint se termine par un `git status`, `cargo fmt`, `cargo test` ciblé, et une revue pair.
-6. Le journal sert de preuve : sans preuve → sprint non validé.
-7. Respecter la priorisation : pas de tâche P1/P2 tant que tout le périmètre P0 n'est pas livré (pre-trade actif, kill-switch testé, paper 60–72 h validé).
-
-## Plan de contrôle du chemin critique
-- **Revue quotidienne** : le dev référent vérifie les journaux et coche la check-list.
-- **Blocages** : si un sprint échoue à un test, revenir à l'étape correspondante et consigner la résolution.
-- **Fallbacks** :
-  - RPC down → basculer sur URL secondaire (`config/default.toml`).
-  - API CEX limitée → réduire la cadence des tests (`sleep`).
-- **Go/No-Go P0** : autorisation de nominal uniquement si les KPIs paper (hit-rate ≥ 35 %, p95 ≤ 6 bps, PnL net ≥ 10 bps/j) sont atteints, le pré-trade est actif et le kill-switch armé/testé.
-- **Go/No-Go P1** : monitoring `/metrics` + dashboard Grafana opérationnels, rapport de calibration appliqué.
-- **Go/No-Go P2** : occurrence filter et sizing adaptatif déployés, replayer e2e validé sur 24 h.
-
-## Documentation & ressources officielles
-- Solana CLI & RPC : https://docs.solanalabs.com/cli
-- Phoenix SDK Rust : https://github.com/Ellipsis-Labs/phoenix-sdk
-- OpenBook v2 : https://openbook.dex.so/docs/
-- Orca Whirlpools : https://docs.orca.so/developer-resources/whirlpools
-- Raydium CLMM : https://docs.raydium.io/developer-resources/amm-and-clmm
-- Binance Spot API : https://binance-docs.github.io/apidocs/spot/en/
-- OKX API v5 : https://www.okx.com/docs-v5/en
-- Bybit Unified API : https://bybit-exchange.github.io/docs
-- Crate `keyring` : https://docs.rs/keyring
-- Tokio runtime : https://docs.rs/tokio
-
-## Micro-gaps à surveiller (objectif 120 %)
-1. **CI & `justfile`** : non codifiés à date — à ajouter pendant SPRINT-004B (P1 hardening).
-2. **Autotune priority fees & occurrence filter** : prévoir les hooks dès P1/P2 pour éviter la dette technique.
-3. **Redondance DEX** : planifier la double connectivité (Phoenix↔OpenBook, Orca↔Raydium) lors du passage en P2.
-4. **TUI opérateur** : à prototyper en P2 pour la supervision locale (tableau spreads/fills/latence).
-
-*(Les URL servent de référence. Les développeurs doivent lire les sections indiquées avant de commencer les sprints associés.)*
+✅ `cargo build --release` (Rust **1.90**), **0 warnings**: `cargo clippy -D warnings`.
+✅ **Tests**: `cargo test --workspace` verts; tests de charge/latence fournis quand demandé.
+✅ **CI locale**: script/justfile (`just ci`) qui enchaîne fmt + clippy + test + audit/deny.
+✅ **Aucun** `todo!()`, `unimplemented!()`, `panic!()` ou commentaires “à faire plus tard”.
+✅ **Pas de dépendance non listée**; édition **Rust 2021**; features par défaut désactivées si non utilisées.
+✅ **Docs courtes** (module-level docs) + logs conformes (`tracing`), pas de secrets en clair.
