@@ -42,6 +42,11 @@ Ne mets **aucun autre texte** entre les blocs `file:`. Termine par un récapitul
    }
    ```
 
+## Paramètres finetuables & traçabilité
+- **Expose** `SPREAD_MIN_BPS`, `SPREAD_MIN_BPS_NAIVE`, `MARGE_SECURITE_BPS`, `OCCURRENCE_FILTER_N_PER_XMIN`, `GAS_TO_BPS_FACTOR` via TOML + override **ENV** (injectés depuis `scripts/run_bot_mainnet.sh`).
+- Lire les valeurs à l'init (`env` -> fallback TOML) et logguer les valeurs retenues en début de run (`tracing::info!`).
+- Respecter les bornes définies dans `config/tuning.toml`; refuser le démarrage si hors bornes.
+
 ## Tests
 - `scanner/tests/filtering.rs` : vecteurs (edge 10 → rejet, edge 80 + 3 occurrences → accept).
 - `scanner/tests/rate.rs` : simuler 600 updates/s, vérifier backlog 0 (`channel.len() == 0`).
@@ -58,6 +63,7 @@ Ne mets **aucun autre texte** entre les blocs `file:`. Termine par un récapitul
 - Tests & bench OK.
 - `just ci` passe.
 - `docs/logs/sprint-003B.md` contient captures throughput.
+- Log en début de run des paramètres finetuables exposés + preuve 500 updates/s.
 
 ---
 

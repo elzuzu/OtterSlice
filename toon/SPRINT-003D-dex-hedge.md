@@ -34,6 +34,11 @@ Ne mets **aucun autre texte** entre les blocs `file:`. Termine par un récapitul
 - Journaliser latence `dex_tx_latency_ms`.
 - Coder enums d’erreur : `InsufficientLiquidity`, `SlippageExceeded`, `AccountMismatch`.
 
+## Paramètres finetuables & guardrails
+- **Expose** `SIZING_USD_PER_TRADE`, `MAX_SLIPPAGE_P95_BPS`, `TIME_IN_FORCE` via TOML + override **ENV** (`scripts/run_bot_mainnet.sh`).
+- Rendre `CU_LIMIT` et `CU_PRICE_MICROLAMPORT` pilotables par ENV (fallback TOML) et logguer les valeurs appliquées pour chaque transaction.
+- Appliquer les bornes de `config/tuning.toml`; si hors plage → `ExecutionError::ConfigOutOfRange` + abort.
+
 ## Tests
 - `execution/tests/dex_compute_budget.rs` : ordre des instructions.
 - `execution/tests/dex_error_mapping.rs` : map codes (Phoenix `OrdersAreLocked`, OpenBook `0x1770`, Orca `0x12c`, Raydium `0x1f4`).
@@ -50,6 +55,7 @@ Ne mets **aucun autre texte** entre les blocs `file:`. Termine par un récapitul
 - Tests & bench OK.
 - `just ci` passe.
 - Config `config/dex/hedge.toml` versionnée avec valeurs par défaut.
+- Logs `CU_LIMIT`/`CU_PRICE_MICROLAMPORT` + sizing/slippage/TIF; garde-fous bornes actifs.
 
 ---
 

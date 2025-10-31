@@ -50,8 +50,10 @@ Tu dois **générer** ces deux scripts (avec droits d’exécution) :
      * `BINANCE_API_KEY`, `BINANCE_API_SECRET`, `OKX_API_KEY`, `OKX_API_SECRET`, `OKX_PASSPHRASE`, `BYBIT_API_KEY`, `BYBIT_API_SECRET`
      * `SOLANA_WALLET_PATH` (chemin vers keypair local), `RPC_PRIMARY`, `RPC_FAILOVER`, `COMMITMENT`
      * Toute **autre** variable requise par le binaire (ex: `REGION`, `SPREAD_MIN_BPS`, `MAX_SLIPPAGE_P95_BPS`, etc.).
+     * **Toutes** les valeurs finetuables (`TUNE_*`, seuils bps, sizing, compute units, guardrails) sont injectées **exclusivement** via ENV/TOML depuis ce script (jamais en dur dans le code Rust).
    * **Aucun secret/URL dans le code Rust**. Le binaire lit **uniquement** via `std::env`.
-   * Doit lancer: `./target/release/toon run --mode paper|live --config ./config/default.toml --markets ./config/markets.toml` (exécutions mainnet **autorisées** et non limitées).
+   * Doit lancer: `./target/release/toon run --mode {paper|live|tune} --config ./config/default.toml --markets ./config/markets.toml` (exécutions mainnet **autorisées** et non limitées).
+   * Le mode `tune` en ligne **doit** être câblé depuis ce script (caps exploration, bornes, `TUNE_*`, `SPREAD_MIN_BPS`, etc.).
    * Doit afficher un récap des variables **non vides** et refuser de démarrer si l’une des clés essentielles manque.
 
 # === ENVIRONNEMENT / VERSIONS ===
@@ -74,8 +76,10 @@ Tu dois **générer** ces deux scripts (avec droits d’exécution) :
 # === ARBORESCENCE CIBLE ===
 
 /bot
-/crates/{common,config,cex,dex-clob,dex-clmm,ingest,engine,exec,risk,metrics,paper,cli}
-/config/{default.toml,markets.toml}
+/crates/{common,config,cex,dex-clob,dex-clmm,ingest,engine,exec,risk,metrics,paper,tuner,cli}
+/config/{default.toml,markets.toml,tuning.toml}
+/config/tuned/{current.toml,<timestamp>.toml}
+/runs/tuning/*.json
 /scripts/{build_pgo_m4.sh,run_bot_mainnet.sh}
 /third-parties/*            # forks M4 (référencés via [patch.crates-io])
 .cargo/config.toml
@@ -106,12 +110,13 @@ justfile
   * **Reconstructeur L2**: snapshot+diffs (tests d’intégration + datasets mock).
   * **DEX CLOB** (Phoenix/OpenBook): subscribe carnets, best bid/ask, place/cancel; **ComputeBudget** (2 ixs) en tête des tx.
   * **DEX CLMM** (Orca/Raydium): lecture state pools; **math quote locale** (Whirlpools/CLMM) validée par tests; ixs `swap`.
-  * **Scanner “net-frais”**: fees→bps (CEX maker/taker, DEX pool, **gas→bps**), `slippage_exp`, `marge_secu` paramétrables; **filtre d’occurrence** (n/X min).
-  * **Exec CEX**: IOC/FAK (mapping timeInForce par exchange), slicing p95, retry/backoff; **Hedge CEX** minimal.
-  * **Risk rails**: caps notionnels, p95 slippage live, kill-switch (WS down > 1.5 s, slot-lag, spread < seuil, échec confirm).
+  * **Scanner “net-frais”**: fees→bps (CEX maker/taker, DEX pool, **gas→bps**), `slippage_exp`, `marge_secu` paramétrables; **filtre d’occurrence** (n/X min) exposé via ENV/TOML (`config/tuning.toml`).
+  * **Exec CEX**: IOC/FAK (mapping timeInForce par exchange), slicing p95, retry/backoff; **Hedge CEX** minimal; sizing/slippage/TIF issus ENV/TOML.
+  * **Risk rails**: caps notionnels, p95 slippage live, kill-switch (WS down > 1.5 s, slot-lag, spread < seuil, échec confirm) avec `ROLLING_HOURS` configurable.
   * **Observabilité**: tracing + CSV/Parquet; **TUI** optionnelle (spreads/fills/latence).
-  * **Configs** `config/default.toml`, `config/markets.toml` (exemples réalistes).
+  * **Configs** `config/default.toml`, `config/markets.toml`, `config/tuning.toml` (exemples réalistes + bornes tuning).
   * **Scripts** `/scripts/build_pgo_m4.sh` et `/scripts/run_bot_mainnet.sh` (noms et exigences ci-dessus).
+  * **Tuner**: crate `tuner/`, CLI `--mode tune`, persistance `config/tuned/*.toml` + `runs/tuning/*.json`.
   * **CI** `.github/workflows/ci.yml`: fmt, clippy `-D warnings`, test, audit/deny, **grep anti-TODO/UNIMPLEMENTED/PANIC**.
   * **justfile**: `just ci`, `just build`, `just paper`, `just replay`, `just pgo-collect`, `just pgo-build`.
   * **Tests**: unitaires (HMAC signatures, parsers WS, math CLMM, ComputeBudget ixs), intégration (L2 rebuild, place/cancel dry-run), *paper* 15 min mock.
@@ -128,6 +133,7 @@ justfile
 * Commandes d’exécution:
 
   * `bash scripts/run_bot_mainnet.sh`  (mainnet **autorisé**)
+  * `./target/release/toon --mode tune --config ./config/default.toml --markets ./config/markets.toml --tuning ./config/tuning.toml`
   * Paper 15 min & PGO collect/use (instructions déjà imprimées par le script de build en cas d’absence de profdata).
 
 ## Étape 4 — RÉCAP & DoD (hors blocs file:)
@@ -144,6 +150,7 @@ justfile
 * ✅ **Aucun** `todo!()`, `unimplemented!()`, `panic!()` non justifié; **aucun secret/URL** dans le code Rust.
 * ✅ Scanner ≥ **500 updates/s** sans backlog sur M-series local.
 * ✅ `/scripts/run_bot_mainnet.sh` démarre le bot en **mainnet réel** (autorisé), refuse si variables critiques manquantes.
+* ✅ `--mode tune` (offline seeding + online 200 itérations) persiste best config + rollback OK, Score ≥ baseline ou slippage p95 réduit.
 
 # === RÈGLES SPÉCIALES DE SORTIE ===
 

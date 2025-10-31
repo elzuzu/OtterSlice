@@ -48,6 +48,7 @@ Ne mets **aucun autre texte** entre les blocs `file:`. Termine par un récapitul
 | 3 | [EPIC-003 — Décision & exécution arbitrage](EPIC-003-execution.md) | **P0** | 003A → 003D | Scanner + exécution CEX/DEX | EPIC-002 |
 | 4 | [EPIC-004 — Gestion du risque & monitoring](EPIC-004-risque.md) | **P0/P1** | 004A → 004C | Pré-trade, métriques, kill-switch | EPIC-003 |
 | 5 | [EPIC-005 — Paper trading & calibration](EPIC-005-paper.md) | **P0/P1** | 005A, 005B | Paper mode + rapport calibration | EPIC-004 |
+| 6 | [EPIC-006 — Auto-tuning & Profitabilité](EPIC-006-auto-tuning.md) | **P1/P2** | 006A | Boucle d'auto-tuning + paramètres finetuables | EPIC-005 |
 
 ### Backlog priorisé (objectif 120 %)
 **P0 — App fonctionnelle & sûre (100 %)**
@@ -61,10 +62,12 @@ Ne mets **aucun autre texte** entre les blocs `file:`. Termine par un récapitul
 - Monitoring exhaustif + webhook retries.
 - Auto-calibration + rapport diffable.
 - CI stricte (`just ci`, `cargo audit`, `cargo deny`, `grep` TODO/UNIMPLEMENTED/PANIC) sur chaque PR.
+- Mode `--mode tune` (offline/online) + tuner sécurisé (EPIC-006).
 
 **P2 — Qualité de signal & robustesse (+10 %)**
 - Replayer Parquet, auto-calibration adaptative, TUI opérateur.
 - Failover RPC, priorisation ComputeBudget dynamique.
+- Bandit contextuel + exploration contrainte (`TUNE_*`, guardrails).
 
 ---
 

@@ -28,6 +28,12 @@ Ne mets **aucun autre texte** entre les blocs `file:`. Termine par un récapitul
 3. Exporter CSV (colonnes `metric,value,window_start,window_end`).
 4. Actualiser rapport Markdown : sections `Résumé exécutif`, `Métriques`, `Incidents`, `Recommandations`.
 5. Commande `just paper` doit encapsuler exécution + génération rapport.
+6. Ajouter exécution `toon --mode tune --paper --budget 72h` (exploration safe) avec caps depuis `scripts/run_bot_mainnet.sh`.
+
+## Mode tuning (paper)
+- Définir profil `--mode tune` pour replay 60–72h (budget `TUNE_BUDGET_ITERS` respecté).
+- Journaliser `Score`, contraintes violées (=0) et config choisie par épisode dans `./runs/tuning/*.json`.
+- Générer `config/tuned/<timestamp>.toml` + symlink `config/tuned/current.toml`.
 
 ## Exemples valides/invalides
 - ✅ Rapport contient référence commit (`git rev-parse HEAD`).
@@ -37,6 +43,7 @@ Ne mets **aucun autre texte** entre les blocs `file:`. Termine par un récapitul
 - `just paper` produit fichiers sans diff local non commit.
 - `docs/logs/paper-trading.md` contient sortie CLI.
 - `cargo test -p paper` (tests unitaires sur metrics) passe.
+- Rapport tuning ajouté (`docs/reports/paper.md`) avec Score vs. épisodes + config persistée.
 
 ---
 

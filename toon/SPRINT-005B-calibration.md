@@ -42,6 +42,12 @@ pub struct BacktestStats {
 2. Écrire tests `calibration/tests/auto_tune.rs` couvrant 3 branches + idempotence.
 3. `just calibration` (alias `just run-calibration`) exécute boucle.
 4. Append résultats dans `docs/reports/calibration.log` (format `timestamp|min_edge_bps|target_size|fpr|fill_rate`).
+5. Orchestrer `toon --mode tune --paper --budget 72h` en fin de calibration pour comparer config auto-calibration vs. tuner.
+
+## Intégration tuning
+- Inclure dans `docs/reports/calibration.log` la meilleure config `tuner` (score, paramètres, contraintes respectées).
+- Copier la config optimale dans `config/tuned/<timestamp>.toml` + mettre à jour `config/tuned/current.toml`.
+- Ajouter graphique Score/itération (PNG) dans `docs/reports/calibration_tuning.png`.
 
 ## Exemples valides/invalides
 - ✅ Ajustement +10 bps quand FPR 0.06.
@@ -51,6 +57,7 @@ pub struct BacktestStats {
 - `cargo test -p calibration` passe.
 - `just run-calibration` produit log.
 - Rapport `docs/reports/paper.md` met à jour section recommandations.
+- `config/tuned/current.toml` + `calibration_tuning.png` présents; contraintes violées = 0.
 
 ---
 

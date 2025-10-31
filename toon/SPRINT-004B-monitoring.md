@@ -32,6 +32,18 @@ Réutiliser bloc EPIC-004. Chaque événement doit inclure `kind`, `code`, `seve
 4. Tests :
    - `monitoring/tests/event_output.rs` : vérifie 3 destinations.
    - `monitoring/tests/retry.rs` : webhook échoue 4 fois → 4 retries + event `severity=error`.
+5. Ajouter job CI `grep` (shell) qui échoue si `todo|unimplemented|panic!` dans `src/` (hors tests) + documenter dans `just ci`.
+
+## Guardrails monitorés
+| KPI | Seuil | Source | Notes |
+| --- | --- | --- | --- |
+| `slippage_p95_bps` | ≤ 6 | risk module | rolling `ROLLING_HOURS` |
+| `latency_ms` | ≤ 1000 | exécution | reporter médiane/p95 |
+| `ws_down_seconds` | ≤ 1.5 | ingestion | alert fatal si dépassé |
+| `max_drawdown_30j` | ≤ 5% | risk analytics | recalcul horaire |
+
+- Consommer `ROLLING_HOURS` via ENV/TOML (mêmes conventions que SPRINT-004A) pour aligner fenêtres.
+- Ajouter un tableau synthétique des guardrails dans `docs/logs/sprint-004B.md`.
 
 ## Exemples valides/invalides
 - ✅ `docs/logs/sprint-004B.md` contient extrait NDJSON.
@@ -41,6 +53,7 @@ Réutiliser bloc EPIC-004. Chaque événement doit inclure `kind`, `code`, `seve
 - Tests monitoring OK.
 - `just ci` passe (vérifier job grep TODO/UNIMPLEMENTED).
 - `metrics/risk.prom` contient metrics listées EPIC-004.
+- Table guardrails + export `ROLLING_HOURS` vérifiés (logs + docs).
 
 ---
 
