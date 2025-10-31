@@ -1,16 +1,17 @@
-# EPIC-005 — Paper trading & calibration
+# EPIC-005 — Paper trading & calibration `[P0 ⟶ P1]`
 
 > **But :** valider la stratégie en mode simulé, analyser les résultats et préparer la décision de go-live.
+> **Priorité** : exécution paper 60–72 h et KPIs en **P0** (SPRINT-005A) ; analyse/calibration/rapport en **P1** (SPRINT-005B).
 
 ## Résultats attendus
-- Mode paper opérationnel, génère des CSV complets et des rapports horaires.
-- Analyse statistique (notebook/script) livrée avec graphiques.
-- Paramètres mis à jour suite aux conclusions (config TOML).
-- Rapport final prêt pour revue (template complété).
+- **[P0]** Mode paper opérationnel, génère des CSV complets et des rapports horaires (run 60–72 h, KPIs atteints).
+- **[P1]** Analyse statistique (notebook/script) livrée avec graphiques.
+- **[P1]** Paramètres mis à jour suite aux conclusions (config TOML).
+- **[P1]** Rapport final prêt pour revue (template complété).
 
 ## Sprints
-1. **SPRINT-005A — Mode paper trading temps réel**.
-2. **SPRINT-005B — Analyse & calibration post-run**.
+1. **[P0] SPRINT-005A — Mode paper trading temps réel**.
+2. **[P1] SPRINT-005B — Analyse & calibration post-run**.
 
 ## Dépendances
 - Requiert EPIC-004 terminé (kill-switch, monitoring) pour garantir la sécurité.

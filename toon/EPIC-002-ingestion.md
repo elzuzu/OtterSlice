@@ -1,6 +1,7 @@
-# EPIC-002 — Ingestion Marchés CEX/DEX
+# EPIC-002 — Ingestion Marchés CEX/DEX `[P0]`
 
 > **Vision :** disposer d'un pipeline de données fiable qui fournit en permanence des carnets cohérents, normalisés et enrichis pour tous les modules amont.
+> **Priorité** : **P0** — conditionne le scanner et l'exécution. Sans L2 cohérent, aucun arbitrage n'est autorisé.
 
 ## Résultats attendus
 - `crates/cex`, `crates/dex-clob`, `crates/dex-clmm`, `crates/ingest` opérationnels, documentés, testés (unitaires + intégration).

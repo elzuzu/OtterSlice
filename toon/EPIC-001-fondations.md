@@ -1,6 +1,7 @@
-# EPIC-001 — Fondations toolchain & workspace
+# EPIC-001 — Fondations toolchain & workspace `[P0]`
 
 > **But pédagogique** : fournir un guide pas-à-pas pour un développeur débutant afin de disposer d'un dépôt Rust compilable sur macOS Apple Silicon, aligné sur les contraintes de performance du projet.
+> **Priorité** : **P0** — gating pour toute la suite (aucun sprint aval ne démarre sans validation des journaux 001A/001B).
 
 ## Résultats attendus
 - Machine Apple Silicon prête avec toolchain Rust 1.90, Solana CLI 1.18.16+, et outils système (`protobuf`, `cmake`, `llvm-profdata`).

@@ -1,6 +1,7 @@
-# SPRINT-003A — Calculateur de frais & coûts transactionnels
+# SPRINT-003A — Calculateur de frais & coûts transactionnels `[P0]`
 
 > **Mission :** fournir des fonctions prêtes à l'emploi qui retournent les frais totaux (CEX + DEX + gas + slippage provisionnel) en basis points.
+> **Priorité** : **P0** — clé pour la règle `net_spread ≥ fees + gas_bps + slip_exp + marge` utilisée par le scanner et le pre-trade.
 
 ## Pré-requis
 - SPRINT-001B (workspace) et SPRINT-002A/002C/002D (sources de market data) complétés.

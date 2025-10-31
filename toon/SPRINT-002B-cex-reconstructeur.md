@@ -1,6 +1,7 @@
-# SPRINT-002B — Reconstructeur d'order book CEX (L2)
+# SPRINT-002B — Reconstructeur d'order book CEX (L2) `[P0]`
 
 > **Tu construis ici la brique qui transforme les flux REST/WS en carnet cohérent. Respecte chaque étape, sinon l'algorithme dérivera.**
+> **Priorité** : **P0** — essentiel pour livrer un carnet CEX cohérent, base du scanner et des contrôles pre-trade.
 
 ## Pré-requis
 - SPRINT-002A validé (les connecteurs REST/WS renvoient des snapshots et des diffs).

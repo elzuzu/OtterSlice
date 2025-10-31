@@ -1,6 +1,7 @@
-# SPRINT-004C — Kill-switch & gestion des incidents
+# SPRINT-004C — Kill-switch & gestion des incidents `[P0]`
 
 > **But :** pouvoir arrêter immédiatement le bot en cas d'incident et documenter les étapes de reprise.
+> **Priorité** : **P0** — kill-switch + runbook + CLI d'armement sont nécessaires avant toute montée en nominal.
 
 ## Pré-requis
 - SPRINT-004A (pre-trade) et SPRINT-004B (monitoring) terminés.

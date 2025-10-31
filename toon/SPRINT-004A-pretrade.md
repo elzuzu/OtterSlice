@@ -1,6 +1,7 @@
-# SPRINT-004A — Contrôles pre-trade & allocation de capital
+# SPRINT-004A — Contrôles pre-trade & allocation de capital `[P0]`
 
 > **Objectif :** garantir qu'avant chaque arbitrage, la taille envoyée respecte les limites de risque et la disponibilité de capital.
+> **Priorité** : **P0** — activer caps notionnels, spread minimum, balance checks et exposition nette avant toute exécution réelle.
 
 ## Pré-requis
 - Modules d'exécution CEX/DEX (SPRINT-003C/003D) et calculateur de frais (SPRINT-003A) disponibles.

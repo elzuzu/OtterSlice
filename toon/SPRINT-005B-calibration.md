@@ -1,6 +1,7 @@
-# SPRINT-005B — Analyse & calibration post paper trading
+# SPRINT-005B — Analyse & calibration post paper trading `[P1]`
 
 > **But :** exploiter les logs du mode paper pour calibrer les paramètres (frais, slippage, limites) et produire un rapport décisionnel.
+> **Priorité** : **P1** — démarre seulement après validation du run paper P0. Prépare la phase P2 (auto-calibration hebdo, occurrence filter) via recommandations chiffrées.
 
 ## Pré-requis
 - SPRINT-005A (paper) a produit au moins un fichier CSV `logs/paper.csv`.
@@ -43,8 +44,9 @@
 6. **Mettre à jour la configuration**
    - Modifie `config/default.toml` : ajuster `risk.max_notional_usd`, `execution.max_inflight_txs`, etc. (justifie les changements).
 7. **Rapport**
-   - Complète `docs/reports/paper_calibration.md` : Résumé, Observations clés, Ajustements, Prochaines étapes.
+   - Complète `docs/reports/paper_calibration.md` : Résumé, Observations clés, Ajustements, Prochaines étapes (incluant axes P2 : occurrence filter, sizing adaptatif, replayer e2e, TUI opérateur).
    - Ajoute un tableau `Avant/Après` pour les paramètres modifiés.
+   - Insère une section "Pont vers P2" listant les actions hebdomadaires d'auto-calibration proposées.
 8. **Journal**
    - `docs/logs/sprint-005B.md` : note la date, la durée d'analyse, les personnes présentes en revue, et un lien vers le notebook.
 
@@ -62,3 +64,9 @@
 - Conserve le CSV original (`logs/paper.csv`) dans un dossier daté (`logs/paper/2024-xx-xx.csv`).
 - Documente le contexte (marchés, heures) pour interpréter correctement les résultats.
 - Vérifie l'intégrité des données (pas de doublons, pas de timestamp manquant).
+
+## Pont vers P2
+- Fournis un tableau des faux positifs/faux négatifs pour éclairer l'implémentation de l'occurrence filter.
+- Estime le gain potentiel d'un sizing adaptatif (vs. profondeur disponible) et propose une formule initiale.
+- Liste les datasets à capturer (fichiers Parquet) pour un replayer e2e et attribue un responsable.
+- Suggère les métriques à exposer dans la future TUI opérateur (latence, spreads, fills).

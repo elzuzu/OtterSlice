@@ -1,6 +1,7 @@
-# SPRINT-003C — Exécution CEX (Binance/OKX/Bybit)
+# SPRINT-003C — Exécution CEX (Binance/OKX/Bybit) `[P0]`
 
 > **But :** transformer une opportunité en ordres effectifs côté CEX en respectant les contraintes de risque et de latence.
+> **Priorité** : **P0** — obligations : ordres IOC/FAK, slicing p95, retry/backoff, latence mesurée et fiable.
 
 ## Pré-requis
 - SPRINT-002A (connecteurs) et SPRINT-003B (scanner) terminés.

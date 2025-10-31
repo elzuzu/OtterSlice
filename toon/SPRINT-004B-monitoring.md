@@ -1,6 +1,7 @@
-# SPRINT-004B — Monitoring temps réel & alerting
+# SPRINT-004B — Monitoring temps réel & alerting `[P1]`
 
 > **But :** suivre l'état du bot (latence, succès d'ordres, exposition) en temps réel et déclencher des alertes.
+> **Priorité** : **P1** — ne démarre qu'après validation complète du périmètre P0. Intègre aussi l'auto-recovery WS + token-bucket affiné et failover RPC/autotune priority fees décrits dans `MASTER_PLAN.md`.
 
 ## Pré-requis
 - Les modules exec/risk produisent déjà des événements (`tracing`, `metrics`).
@@ -50,6 +51,14 @@
 - ✅ Dashboard JSON versionné + capture PNG.
 - ✅ Runbook monitoring détaillé.
 - ✅ Journal complété.
+
+## Hardening P1 à intégrer
+- Implémenter l'auto-recovery WS (resubscribe automatique + gap-fill) pour tous les flux de marché.
+- Ajouter un token-bucket rate limiter configurable (fichier `config/monitoring.toml`).
+- Mettre en place un failover RPC intelligent avec backoff exponentiel.
+- Ajouter un autotune simple du `compute_unit_price` basé sur la congestion observée (expose métriques).
+- Introduire un `justfile` à la racine pour orchestrer build/paper/replay/PGO.
+- Activer une CI locale (`just ci`) avec `cargo fmt`, `cargo clippy -D warnings`, `cargo test`, `cargo deny` (ou équivalent audit).
 
 ## Dépendances
 - S'appuie sur les rapports d'exécution et le scanner.

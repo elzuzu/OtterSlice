@@ -1,6 +1,7 @@
-# SPRINT-001A — Installer la toolchain & les dépendances système
+# SPRINT-001A — Installer la toolchain & les dépendances système `[P0]`
 
 > **Persona visée** : dev junior sans expérience système. Suis chaque étape dans l'ordre sans sauter de case.
+> **Priorité** : **P0** — sprint bloquant : sans toolchain validée, impossible de démarrer les autres travaux.
 
 ## Résultat attendu à la fin du sprint
 - Poste macOS Apple Silicon prêt pour compiler des projets Rust 1.90 optimisés (toolchain + composants + cibles).
