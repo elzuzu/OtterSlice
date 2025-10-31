@@ -1,84 +1,62 @@
-# SPRINT-003A — Calculateur de frais & coûts transactionnels `[P0]`
+**Directive Claude (à respecter à la lettre)**
 
-> **Mission :** fournir des fonctions prêtes à l'emploi qui retournent les frais totaux (CEX + DEX + gas + slippage provisionnel) en basis points.
-> **Priorité** : **P0** — clé pour la règle `net_spread ≥ fees + gas_bps + slip_exp + marge` utilisée par le scanner et le pre-trade.
+* Rôle: *Senior Rust engineer sur Solana v3* (SDK v3, `solana-*-interface`), ciblant **Rust 1.90** sur **macOS M-series**.
+* **Génère du code finalisé, zéro placeholder**: **interdit** d’émettre `todo!()`, `unimplemented!()`, `panic!()` non justifiés, sections vides, “exemples à adapter” ou pseudocode.
+* **Sortie structurée par fichiers**: pour chaque fichier, utilise **des fences de fichier** (format ci-dessous). Un fichier = contenu intégral.
+* **Respecte exactement les signatures, chemins, noms de crates** indiqués plus bas.
+* **N’ajoute aucune dépendance** non listée; **Rust stable 1.90 uniquement**.
+* Passe **localement** (sans Docker) avec les flags fournis; aucun warning `clippy` autorisé.
+* Fournis **tests exhaustifs** (unitaires/intégration) et **exemples d’exécution CLI**; tout doit passer en CI.
 
-## Pré-requis
-- SPRINT-001B (workspace) et SPRINT-002A/002C/002D (sources de market data) complétés.
-- Connaître les grilles de frais Binance/OKX/Bybit (taker) et les fees DEX (0.05% Phoenix, 0.3% Raydium, etc.).
+Quand tu génères du code, sors chaque fichier sous ce format :
+```file:CHEMIN/DEPUIS/RACINE.rs
+// contenu entier du fichier, prêt à compiler
+```
 
-## Livrables
-1. Module `crates/common/src/fees.rs` exposant :
-   - `pub struct FeeBreakdown { pub cex_bps: f64, pub dex_bps: f64, pub gas_bps: f64, pub slippage_bps: f64, pub total_bps: f64 }`
-   - `pub fn compute_total(params: &FeeParams) -> FeeBreakdown`
-   - `pub fn load_cex_fees(exchange: Exchange, account_tier: &str) -> FeeTable`
-2. Fichier de configuration `config/fees.toml` définissant les frais par exchange/pool.
-3. Tests unitaires validant les conversions (fees absolus → bps) et la prise en compte du volume.
+Ne mets **aucun autre texte** entre les blocs `file:`. Termine par un récapitulatif.
 
-## Étapes guidées
-1. **Créer `config/fees.toml`**
-   ```toml
-   [binance]
-   taker_bps = 10
-   maker_bps = 5
+# SPRINT-003A — Calcul des frais `[P0]`
 
-   [okx]
-   taker_bps = 8
-   maker_bps = 4
+## Objectifs
+- Convertir tous les frais (gas Solana, pool fee, maker/taker CEX) en basis points.
+- Maintenir deux seuils : `target_fee_bps = 70`, `warning_fee_bps = 20`.
+- Exposer API `fn effective_fee_bps(context: FeeContext) -> u32`.
 
-   [bybit]
-   taker_bps = 10
-   maker_bps = 0
+## Entrées & structures
+```rust
+pub struct FeeContext {
+    pub venue: Venue,
+    pub lamports_per_signature: u64,
+    pub compute_units_consumed: u32,
+    pub compute_unit_price: u64,
+    pub pool_fee_bps: u16,
+    pub maker_fee_bps: Option<i16>,
+    pub taker_fee_bps: Option<i16>,
+}
+```
+- `Venue` réutilise enum EPIC-003.
+- Gas→bps : `fee_bps = ((lamports + cu_cost) * 10_000) / notional_lamports`.
 
-   [dex]
-   phoenix_bps = 5
-   openbook_bps = 3
-   orca_bps = 6
-   raydium_bps = 7
+## Tâches
+1. Implémenter conversion lamports → USD via `config/fee/oracle.toml` (fournir structure, fallback 180 USD/SOL).
+2. Ajouter tests `fees/tests/solana_gas.rs` (cas compute price 0 et 10 microLamports).
+3. Couvrir CEX : `maker_fee_bps`, `taker_fee_bps` signés (Bybit -2 bps).
+4. Documenter dans `docs/fees.md` (table venue→fee).
 
-   [gas]
-   sol_lamports_per_cu = 5000
-   average_cu_per_tx = 220000
-   usdc_per_sol = 150
-   ```
-   - Vérifie la syntaxe via `python -c "import tomli; tomli.load(open('config/fees.toml','rb'))"`.
-2. **Implémenter `FeeParams`**
-   - Champs : `exchange`, `cex_fee_model`, `dex_market`, `trade_notional_usd`, `expected_slippage_bps`, `compute_unit_price`, `compute_unit_consumption`.
-   - Ajoute une méthode `fn from_trade(trade: &TradeContext) -> Self`.
-3. **Calculer les frais CEX**
-   - Utilise `trade_notional_usd * cex_taker_bps / 10_000` → convertis ensuite en bps (`value / trade_notional_usd * 10_000`).
-   - Pour futures (Bybit), ajoute un paramètre `funding_bps` (par défaut 0).
-4. **Calculer les frais DEX**
-   - Phoenix/OpenBook : `fee_bps` lu dans `config/fees.toml`.
-   - CLMM : extrais `fee_rate_bps` depuis `ClmmPoolState` (module 002D).
-5. **Estimer le gas**
-   - Convertis `compute_unit_price` (micro-lamports) et `compute_unit_consumption` en USD :
-     `gas_usd = (compute_unit_price * compute_unit_consumption / 1_000_000) * (1e-9 SOL/lamport) * usdc_per_sol`.
-   - Convertis ensuite en bps.
-6. **Slippage provisionnel**
-   - Ajoute `slippage_bps = max(expected_slippage_bps, observed_depth_bps)` (observed venant du reconstructeur CEX/DEX).
-7. **Retourner `FeeBreakdown`**
-   - `total_bps = cex_bps + dex_bps + gas_bps + slippage_bps`.
-   - Ajoute `assert!(total_bps.is_finite())` pour éviter les NaN.
-8. **Tests unitaires**
-   - `test_fee_breakdown_spot`: notional 10_000 USDC sur Binance + Phoenix → attends `cex_bps=10`, `dex_bps=5`, `gas_bps≈7`, `total≈22`.
-   - `test_fee_breakdown_clmm`: notional 5_000, `fee_rate_bps=30`, `compute_unit_price=2_000`, `compute_unit_consumption=250_000`.
-   - `test_slippage_floor`: `expected_slippage_bps=4`, `observed=6` → résultat 6.
-9. **Documentation**
-   - Ajoute un README `crates/common/README.md` expliquant comment mettre à jour les frais (copie des sources officielles).
-10. **Journal**
-   - `docs/logs/sprint-003A.md` : captures des tests et d'un exemple CLI `cargo run -p cli -- --mode show-fees` (ajoute un mode qui imprime le breakdown pour SOL/USDC).
+## Exemples valides/invalides
+- ✅ `effective_fee_bps` retourne 65 pour compute price 0.
+- ❌ Frais négatifs ignorés.
 
-## Critères d'acceptation
-- ✅ `cargo test -p common fees` passe.
-- ✅ Mode CLI `show-fees` affiche chaque composant avec 2 décimales.
-- ✅ `config/fees.toml` versionné + validé.
-- ✅ Documentation sur la mise à jour des frais rédigée.
+## Checklist de validation
+- `cargo test -p fees` passe.
+- `just ci` inclut module.
+- `docs/logs/sprint-003A.md` contient exemples calculés.
 
-## Dépendances
-- Fournit les données au SPRINT-003B (scanner). Utilisé par SPRINT-004A (pre-trade check).
+---
 
-## Points d'attention
-- Ne mélange pas `bps` (basis points) et pourcentage : `1% = 100 bps`.
-- `compute_unit_price` se mesure en **micro-lamports** : multiplie par `1e-6` avant conversion.
-- Rends les fonctions pures (sans `async`) pour faciliter les tests.
+✅ `cargo build --release` (Rust **1.90**), **0 warnings**: `cargo clippy -D warnings`.
+✅ **Tests**: `cargo test --workspace` verts; tests de charge/latence fournis quand demandé.
+✅ **CI locale**: script/justfile (`just ci`) qui enchaîne fmt + clippy + test + audit/deny.
+✅ **Aucun** `todo!()`, `unimplemented!()`, `panic!()` ou commentaires “à faire plus tard”.
+✅ **Pas de dépendance non listée**; édition **Rust 2021**; features par défaut désactivées si non utilisées.
+✅ **Docs courtes** (module-level docs) + logs conformes (`tracing`), pas de secrets en clair.

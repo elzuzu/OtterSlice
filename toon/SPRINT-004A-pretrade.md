@@ -1,66 +1,62 @@
-# SPRINT-004A — Contrôles pre-trade & allocation de capital `[P0]`
+**Directive Claude (à respecter à la lettre)**
 
-> **Objectif :** garantir qu'avant chaque arbitrage, la taille envoyée respecte les limites de risque et la disponibilité de capital.
-> **Priorité** : **P0** — activer caps notionnels, spread minimum, balance checks et exposition nette avant toute exécution réelle.
+* Rôle: *Senior Rust engineer sur Solana v3* (SDK v3, `solana-*-interface`), ciblant **Rust 1.90** sur **macOS M-series**.
+* **Génère du code finalisé, zéro placeholder**: **interdit** d’émettre `todo!()`, `unimplemented!()`, `panic!()` non justifiés, sections vides, “exemples à adapter” ou pseudocode.
+* **Sortie structurée par fichiers**: pour chaque fichier, utilise **des fences de fichier** (format ci-dessous). Un fichier = contenu intégral.
+* **Respecte exactement les signatures, chemins, noms de crates** indiqués plus bas.
+* **N’ajoute aucune dépendance** non listée; **Rust stable 1.90 uniquement**.
+* Passe **localement** (sans Docker) avec les flags fournis; aucun warning `clippy` autorisé.
+* Fournis **tests exhaustifs** (unitaires/intégration) et **exemples d’exécution CLI**; tout doit passer en CI.
 
-## Pré-requis
-- Modules d'exécution CEX/DEX (SPRINT-003C/003D) et calculateur de frais (SPRINT-003A) disponibles.
-- Base de données ou stockage léger (utilise `sled` ou fichiers CSV) pour suivre l'exposition.
+Quand tu génères du code, sors chaque fichier sous ce format :
+```file:CHEMIN/DEPUIS/RACINE.rs
+// contenu entier du fichier, prêt à compiler
+```
 
-## Livrables
-1. Module `crates/risk/src/pretrade.rs` exposant :
-   - `pub struct PreTradeCheckRequest { market: MarketPair, notional_usd: f64, cex_account: Exchange, dex_venue: DexVenue }`
-   - `pub struct PreTradeDecision { allowed: bool, reason: Option<String>, adjusted_notional: f64 }`
-   - `pub fn evaluate(request: &PreTradeCheckRequest, limits: &RiskLimits, balances: &BalanceSheet) -> PreTradeDecision`
-2. Chargement des limites depuis `config/default.toml` (`risk` section).
-3. CLI `cargo run -p cli -- --mode pretrade --market SOL/USDC --notional 500`.
-4. Tests unitaires couvrant les cas limites (cap global, cap par marché, max positions, min spread).
+Ne mets **aucun autre texte** entre les blocs `file:`. Termine par un récapitulatif.
 
-## Étapes guidées
-1. **Définir les structures de limites**
-   - `struct RiskLimits { max_notional_usd: f64, per_market_cap_usd: f64, max_open_positions: u32, max_daily_loss_usd: f64 }`.
-   - Charger ces valeurs depuis `config/default.toml` (utilise `serde::Deserialize`).
-2. **Construire la feuille de balance**
-   - `struct BalanceSheet { cex_balances: HashMap<Exchange, f64>, dex_balances: HashMap<String, f64>, open_positions: HashMap<MarketPair, f64> }`.
-   - Implémente `fn load_from_disk(path: &Path) -> Result<Self>` (lecture d'un fichier JSON `state/balance.json`).
-3. **Évaluer la disponibilité**
-   - Vérifie `notional_usd <= balances.cex_balances[exchange]` et `notional_usd <= balances.dex_balances[market.quote]`.
-   - Si insuffisant, réduit `adjusted_notional` à ce qui est disponible.
-4. **Vérifier les caps**
-   - `if balances.open_positions_total() + adjusted_notional > limits.max_notional_usd` → `allowed=false`.
-   - `if balances.open_positions[market] + adjusted_notional > limits.per_market_cap_usd` → `allowed=false`.
-5. **Contrôler le net spread**
-   - Optionnel : injecte le `net_spread_bps` du scanner. Refuse si `< limits.min_spread_bps`.
-6. **Gérer le kill-switch**
-   - Si un flag `state/kill_switch.json` contient `true`, retourne `allowed=false` avec raison "kill switch active".
-7. **Mise à jour de la feuille de balance**
-   - Si autorisé, réserve le montant (`balances.reserve(market, adjusted_notional)`) et sauvegarde le fichier.
-8. **Tests**
-   - `test_cap_per_market` : cap = 1000, notional 1200 → refuse.
-   - `test_adjust_notional` : balance CEX 300, demande 500 → autorise 300.
-   - `test_kill_switch` : fichier kill-switch `true` → refuse.
-9. **CLI**
-   - Mode `pretrade` affiche :
-     ```text
-     Market: SOL/USDC
-     Requested notional: 500
-     Decision: allowed (adjusted: 300) — reason: limited by CEX balance
-     ```
-   - Ajoute `--state state/balance.json`.
-10. **Journal**
-    - `docs/logs/sprint-004A.md` : captures des tests + exemple CLI.
+# SPRINT-004A — Garde-fous pré-trade `[P0]`
 
-## Critères d'acceptation
-- ✅ `cargo test -p risk pretrade` réussit.
-- ✅ CLI `pretrade` renvoie un message compréhensible.
-- ✅ Les fichiers `state/balance.json` et `state/kill_switch.json` sont documentés (ajoute `docs/runbooks/state-files.md`).
-- ✅ Journal complété.
+## Objectifs
+- Implémenter `PreTradeChecker` appliquant seuils :
+  - Notional max 500k USDT (par sens).
+  - Slot lag ≤ 1500.
+  - Slippage p95 ≤ 6 bps.
+  - WS downtime ≤ 1.5 s.
+- Retourner `PreTradeDecision::{Allow, Reject { reason }}`.
 
-## Dépendances
-- Utilisé par SPRINT-003C/003D avant envoi d'ordres.
-- Fournit l'état pour SPRINT-004B (monitoring temps réel).
+## Entrées
+```rust
+pub struct PreTradeInput {
+    pub planned_notional: Decimal,
+    pub current_notional_long: Decimal,
+    pub current_notional_short: Decimal,
+    pub slot_lag: u64,
+    pub slippage_p95_bps: u16,
+    pub ws_down_seconds: f32,
+}
+```
 
-## Points d'attention
-- Gère les valeurs `NaN` ou négatives (retourne `allowed=false` et loggue une erreur).
-- Utilise des verrous (`parking_lot::Mutex`) pour éviter les courses lors de la mise à jour du fichier.
-- Prévois un test de sérialisation/désérialisation du `BalanceSheet`.
+## Tâches
+1. Implémenter `fn evaluate(&self, input: &PreTradeInput) -> PreTradeDecision`.
+2. Log `INFO` sur acceptation, `WARN` sur rejet.
+3. Publier métriques `pretrade_reject_total` (labels `reason`).
+4. Tests pour chaque seuil (>= / >).
+
+## Exemples valides/invalides
+- ✅ Rejet notional > 500k consigné dans `docs/logs/sprint-004A.md`.
+- ❌ Tolérance slot lag > 1500.
+
+## Checklist de validation
+- `cargo test -p risk` couvre tous les cas.
+- `just ci` passe.
+- Métriques exportées vers `metrics/risk.prom`.
+
+---
+
+✅ `cargo build --release` (Rust **1.90**), **0 warnings**: `cargo clippy -D warnings`.
+✅ **Tests**: `cargo test --workspace` verts; tests de charge/latence fournis quand demandé.
+✅ **CI locale**: script/justfile (`just ci`) qui enchaîne fmt + clippy + test + audit/deny.
+✅ **Aucun** `todo!()`, `unimplemented!()`, `panic!()` ou commentaires “à faire plus tard”.
+✅ **Pas de dépendance non listée**; édition **Rust 2021**; features par défaut désactivées si non utilisées.
+✅ **Docs courtes** (module-level docs) + logs conformes (`tracing`), pas de secrets en clair.

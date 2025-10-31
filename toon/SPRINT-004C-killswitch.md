@@ -1,62 +1,57 @@
-# SPRINT-004C — Kill-switch & gestion des incidents `[P0]`
+**Directive Claude (à respecter à la lettre)**
 
-> **But :** pouvoir arrêter immédiatement le bot en cas d'incident et documenter les étapes de reprise.
-> **Priorité** : **P0** — kill-switch + runbook + CLI d'armement sont nécessaires avant toute montée en nominal.
+* Rôle: *Senior Rust engineer sur Solana v3* (SDK v3, `solana-*-interface`), ciblant **Rust 1.90** sur **macOS M-series**.
+* **Génère du code finalisé, zéro placeholder**: **interdit** d’émettre `todo!()`, `unimplemented!()`, `panic!()` non justifiés, sections vides, “exemples à adapter” ou pseudocode.
+* **Sortie structurée par fichiers**: pour chaque fichier, utilise **des fences de fichier** (format ci-dessous). Un fichier = contenu intégral.
+* **Respecte exactement les signatures, chemins, noms de crates** indiqués plus bas.
+* **N’ajoute aucune dépendance** non listée; **Rust stable 1.90 uniquement**.
+* Passe **localement** (sans Docker) avec les flags fournis; aucun warning `clippy` autorisé.
+* Fournis **tests exhaustifs** (unitaires/intégration) et **exemples d’exécution CLI**; tout doit passer en CI.
 
-## Pré-requis
-- SPRINT-004A (pre-trade) et SPRINT-004B (monitoring) terminés.
-- Runbook kill-switch existant (`docs/runbooks/killswitch.md`) à compléter.
+Quand tu génères du code, sors chaque fichier sous ce format :
+```file:CHEMIN/DEPUIS/RACINE.rs
+// contenu entier du fichier, prêt à compiler
+```
 
-## Livrables
-1. Module `crates/risk/src/kill_switch.rs` exposant :
-   - `pub struct KillSwitch { flag_path: PathBuf, notifier: broadcast::Sender<KillEvent> }`
-   - `pub fn arm(&self) -> Result<()>`, `pub fn disarm(&self) -> Result<()>`, `pub fn is_active(&self) -> bool`
-   - `pub async fn watch(self) -> Result<()>` surveillant un fichier `state/kill_switch.json`.
-2. Commande CLI `cargo run -p cli -- --mode kill-switch --action arm --reason "RPC degraded"`.
-3. Tests unitaires pour vérifier l'armement/désarmement et la notification des consommateurs.
-4. Mise à jour du runbook `docs/runbooks/killswitch.md` avec une checklist minute par minute.
+Ne mets **aucun autre texte** entre les blocs `file:`. Termine par un récapitulatif.
 
-## Étapes guidées
-1. **Créer la structure**
-   - `KillSwitch` stocke le chemin du fichier et un `broadcast::Sender<KillEvent>`.
-   - `KillEvent` contient `timestamp`, `reason`, `actor`.
-2. **Armement**
-   - `arm()` écrit `{"active":true,"reason":"...","timestamp":"..."}` dans `state/kill_switch.json`.
-   - `disarm()` écrit `{"active":false}`.
-   - Utilise `serde_json` + `fs::write` avec `sync_all()` pour garantir la persistance.
-3. **Watcher**
-   - Utilise `notify::recommended_watcher` pour détecter les modifications de fichier.
-   - À chaque changement, relit le JSON et diffuse l'évènement (`notifier.send(event)`).
-4. **Intégration**
-   - Dans `pretrade::evaluate`, consulte `KillSwitch::is_active()`.
-   - Dans `engine::scanner`, arrête la boucle si un `KillEvent` est reçu.
-5. **CLI**
-   - Ajoute un sous-commande `kill-switch` avec options `--action arm|disarm|status`.
-   - Lors d'un `arm`, demande une confirmation (`tape "ARM" pour confirmer`).
-   - Affiche l'état actuel (`status` lit le fichier JSON et imprime). Ajoute option `--follow` pour rester en attente des évènements.
-6. **Tests**
-   - `test_arm_disarm`: utilise un dossier temporaire, arme, vérifie `is_active`, désarme.
-   - `test_watch_notifies`: modifie manuellement le fichier et vérifie qu'un évènement est reçu.
-7. **Runbook**
-   - Complète `docs/runbooks/killswitch.md` :
-     - Minute 0 : armer via CLI.
-     - Minute 1 : vérifier `monitoring` (alerte slack).
-     - Minute 5 : notifier l'équipe.
-     - Minute 10 : démarrer procédure de reprise (checklist).
-8. **Journal**
-   - `docs/logs/sprint-004C.md` : sorties tests, capture CLI, photo du runbook mis à jour.
+# SPRINT-004C — Kill-switch `[P0]`
 
-## Critères d'acceptation
-- ✅ `cargo test -p risk kill_switch` passe.
-- ✅ CLI `kill-switch --action arm` crée le fichier JSON avec la raison.
-- ✅ Un composant abonné reçoit le broadcast en < 1s.
-- ✅ Runbook mis à jour et journal complété.
+## Objectifs
+- Implémenter kill-switch déclenché par EPIC-004 :
+  - Émettre signal `SIGUSR1` au process exécution.
+  - Annuler ordres en cours (CEX/DEX).
+  - Révoquer API keys temporaires (Binance `DELETE /fapi/v1/listenKey`, Bybit `POST /v5/user/cancel-listen-key`).
+- Garantir idempotence (appel multiple sans effet secondaire supplémentaire).
 
-## Dépendances
-- Impacte tous les modules (pre-trade, scanner, executors).
-- Nécessaire avant de passer en paper trading (SPRINT-005A).
+## Pipeline
+1. `KillSwitch::trigger(reason)` → log `ERROR` + event JSON (format EPIC-004).
+2. Exécuter tasks en parallèle (`futures::try_join!`) :
+   - `cex.cancel_all()` par venue.
+   - `dex.abort_all_pending()`.
+   - `system::signal(SIGUSR1)`.
+3. Attendre confirmations `CancelAllResponse` (< 1 s).
+4. Mettre flag `kill_switch_engaged = true` (AtomicBool).
 
-## Points d'attention
-- Gère les erreurs disque (si `fs::write` échoue, loggue `error` et retourne `Result::Err`).
-- Pour éviter les races, mets le `KillSwitch` dans un `Arc` partagé.
-- Ajoute une option `--reason-file` pour charger un message long depuis un fichier (permet copier/coller du runbook).
+## Tests
+- `monitoring/tests/killswitch_idempotent.rs` : double trigger → seconde fois `AlreadyEngaged`.
+- `monitoring/tests/killswitch_api.rs` : mocks HTTP pour deletes.
+- `monitoring/tests/killswitch_signal.rs` : capture signal via pipe.
+
+## Exemples valides/invalides
+- ✅ `docs/logs/sprint-004C.md` contient chronologie (timestamps ms).
+- ❌ Manque revocation listenKey.
+
+## Checklist de validation
+- Tests kill-switch OK.
+- `just ci` passe.
+- CI grep TODO/UNIMPLEMENTED reste actif.
+
+---
+
+✅ `cargo build --release` (Rust **1.90**), **0 warnings**: `cargo clippy -D warnings`.
+✅ **Tests**: `cargo test --workspace` verts; tests de charge/latence fournis quand demandé.
+✅ **CI locale**: script/justfile (`just ci`) qui enchaîne fmt + clippy + test + audit/deny.
+✅ **Aucun** `todo!()`, `unimplemented!()`, `panic!()` ou commentaires “à faire plus tard”.
+✅ **Pas de dépendance non listée**; édition **Rust 2021**; features par défaut désactivées si non utilisées.
+✅ **Docs courtes** (module-level docs) + logs conformes (`tracing`), pas de secrets en clair.

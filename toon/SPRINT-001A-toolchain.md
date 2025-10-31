@@ -1,114 +1,95 @@
-# SPRINT-001A — Installer la toolchain & les dépendances système `[P0]`
+**Directive Claude (à respecter à la lettre)**
 
-> **Persona visée** : dev junior sans expérience système. Suis chaque étape dans l'ordre sans sauter de case.
-> **Priorité** : **P0** — sprint bloquant : sans toolchain validée, impossible de démarrer les autres travaux.
+* Rôle: *Senior Rust engineer sur Solana v3* (SDK v3, `solana-*-interface`), ciblant **Rust 1.90** sur **macOS M-series**.
+* **Génère du code finalisé, zéro placeholder**: **interdit** d’émettre `todo!()`, `unimplemented!()`, `panic!()` non justifiés, sections vides, “exemples à adapter” ou pseudocode.
+* **Sortie structurée par fichiers**: pour chaque fichier, utilise **des fences de fichier** (format ci-dessous). Un fichier = contenu intégral.
+* **Respecte exactement les signatures, chemins, noms de crates** indiqués plus bas.
+* **N’ajoute aucune dépendance** non listée; **Rust stable 1.90 uniquement**.
+* Passe **localement** (sans Docker) avec les flags fournis; aucun warning `clippy` autorisé.
+* Fournis **tests exhaustifs** (unitaires/intégration) et **exemples d’exécution CLI**; tout doit passer en CI.
 
-## Résultat attendu à la fin du sprint
-- Poste macOS Apple Silicon prêt pour compiler des projets Rust 1.90 optimisés (toolchain + composants + cibles).
-- Outils systèmes installés et testés individuellement (`protoc`, `llvm-profdata`, `cmake`).
-- Solana CLI v1.18.16+ disponible avec l'autocomplétion.
-- Trousseau macOS nommé `OtterSlice` créé pour les secrets.
-- Journal de validation rempli dans `docs/logs/sprint-001A.md` (à créer) contenant captures de commandes & commentaires.
+Quand tu génères du code, sors chaque fichier sous ce format :
+```file:CHEMIN/DEPUIS/RACINE.rs
+// contenu entier du fichier, prêt à compiler
+```
 
-## Préparation (à faire avant les commandes)
-1. Créer un dossier `~/OtterSlice-notes/` et un fichier `sprint-001A-checklist.md` où tu colleras chaque sortie de commande.
-2. Mettre à jour macOS (menu pomme → Réglages Système → Général → Mise à jour de logiciels). Redémarre si demandé.
-3. Désactiver les restrictions proxy/VPN qui bloqueraient `curl` ou `brew` le temps du sprint.
+Ne mets **aucun autre texte** entre les blocs `file:`. Termine par un récapitulatif.
 
-## Étapes détaillées (ne pas condenser, tout exécuter)
-1. **Installer Homebrew**
-   - Ouvre l'app Terminal (Spotlight → "Terminal").
-   - Colle la commande suivante :
-     ```bash
-     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-     ```
-   - À la fin, suis les instructions affichées (copier/coller les lignes `echo` vers `.zprofile` ou `.zshrc`).
-   - Vérifie : `brew --version` doit afficher `Homebrew 4.x`. Si ce n'est pas le cas, relance le terminal et recommence la vérification.
-2. **Installer Rustup + toolchain 1.90.0**
-   - Commande :
-     ```bash
-     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.90.0
-     ```
-   - Quand l'installateur termine, exécute `source "$HOME/.cargo/env"`.
-   - Vérifie : `rustc --version` et `cargo --version` doivent afficher `1.90.0`.
-3. **Installer les composants Rust nécessaires**
-   - Commande unique :
-     ```bash
-     rustup component add rustfmt clippy llvm-tools-preview --toolchain 1.90.0
-     ```
-   - Vérifie qu'aucune erreur n'est signalée (sortie "installed successfully").
-4. **S'assurer que la cible Apple Silicon est disponible**
-   - `rustup target list --installed` doit contenir `aarch64-apple-darwin`.
-   - Si absent, exécute `rustup target add aarch64-apple-darwin --toolchain 1.90.0`.
-5. **Installer les dépendances système via Homebrew**
-   - Commande :
-     ```bash
-     brew install protobuf cmake llvm coreutils jq pkg-config
-     ```
-   - Vérifications :
-     - `protoc --version` → `libprotoc 3.21+`.
-     - `cmake --version` → `cmake version 3.27+`.
-     - `$(brew --prefix llvm)/bin/llvm-profdata --version` → note la version.
-     - Ajoute `export PATH="$(brew --prefix llvm)/bin:$PATH"` dans `~/.zshrc` si `llvm-profdata` n'est pas trouvé.
-6. **Installer Solana CLI v1.18.16 ou supérieur**
-   - Commande :
-     ```bash
-     sh -c "$(curl -sSfL https://release.solana.com/v1.18.16/install)"
-     ```
-   - Ajoute la ligne suivante dans `~/.zshrc` (remplace `<USERNAME>` si nécessaire) :
-     ```bash
-     export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
-     ```
-   - Recharge le terminal (`source ~/.zshrc`) puis vérifie :
-     ```bash
-     solana --version
-     solana config get
-     ```
-     La première commande doit afficher `solana-cli 1.18.16` (ou +). La seconde doit fonctionner sans erreur.
-7. **Installer Node.js (utilitaire)**
-   - Commande : `brew install node`.
-   - Vérifie : `node --version` ≥ 20.x et `npm --version` ≥ 10.x.
-8. **Configurer la complétion shell et rust-analyzer**
-   - Installe la complétion cargo :
-     ```bash
-     rustup component add rust-analyzer --toolchain 1.90.0
-     mkdir -p ~/.zfunc
-     rustup completions zsh cargo > ~/.zfunc/_cargo
-     rustup completions zsh rustup > ~/.zfunc/_rustup
-     ```
-   - Ajoute dans `~/.zshrc` :
-     ```bash
-     fpath=($HOME/.zfunc $fpath)
-     autoload -Uz compinit && compinit
-     ```
-9. **Créer le trousseau Keychain dédié**
-   - Ouvre `Applications > Utilitaires > Trousseau d'accès`.
-   - Menu `Fichier > Nouveau trousseau…` → nomme-le **OtterSlice** → définis un mot de passe et note-le dans `sprint-001A-checklist.md` (ne le stocke pas dans un dépôt git).
-   - Crée un élément test : clic droit dans le trousseau → "Nouvel élément de mot de passe" → Nom `otterslice-test` / Compte `demo` / Mot de passe `change_me`. Vérifie qu'il apparaît.
-10. **Configurer le fichier de log du sprint**
-    - Dans le dépôt, crée le dossier `docs/logs/` s'il n'existe pas : `mkdir -p docs/logs`.
-    - Crée `docs/logs/sprint-001A.md` avec :
-      ```markdown
-      # Sprint 001A — Journal d'installation
-      - Date : <JJ/MM/AAAA>
-      - Opérateur : <Ton nom>
+# SPRINT-001A — Installation toolchain `[P0]`
 
-      ## Preuves
-      ```
-    - Ajoute dans la section "Preuves" des blocs de code avec les sorties de chaque commande de vérification.
+## Objectifs
+- Installer Rust 1.90, `clippy`, `rustfmt`, Solana CLI 1.18.16+, `llvm-profdata`, `protobuf`, `cmake`, `pkg-config`.
+- Générer le fichier `rust-toolchain.toml` (contenu imposé EPIC-001) et valider `rustup show`.
+- Préparer le `justfile` (recettes `fmt`, `lint`, `test`, `audit`, `deny`, `ci`, `pgo-collect`, `pgo-use`).
 
-## Tests & critères d'acceptation
-- ✅ `rustc --version` et `cargo --version` retournent `1.90.0 (stable)`.
-- ✅ `rustup show` liste `Default toolchain 1.90.0 (aarch64-apple-darwin)`.
-- ✅ `protoc --version`, `cmake --version`, `llvm-profdata --version`, `node --version`, `solana --version` exécutés sans erreur (captures stockées dans `docs/logs/sprint-001A.md`).
-- ✅ Capture d'écran (ou export PDF) du trousseau "OtterSlice" jointe dans le log (sauvegarde le fichier sous `docs/logs/otterslice-keychain.png`).
-- ✅ Fichier `docs/logs/sprint-001A.md` commité avec toutes les preuves.
+## Étapes détaillées
+1. Vérifier la machine (`uname -m` → `arm64`, `sw_vers` documenté).
+2. Installer toolchain :
+   ```bash
+   rustup toolchain install 1.90.0 --component clippy rustfmt
+   rustup default 1.90.0
+   brew install protobuf cmake llvm pkg-config
+   sh -c "$(curl -sSfL https://release.solana.com/v1.18.16/install)"
+   ```
+3. Ajouter `~/.profile` exports :
+   ```bash
+   export PATH="$HOME/.cargo/bin:$HOME/.local/share/solana/install/releases/1.18.16/solana-release/bin:$PATH"
+   ```
+4. Créer `rust-toolchain.toml` exactement comme spécifié.
+5. Initialiser `justfile` minimal :
+   ```make
+   default: ci
 
-## Dépendances / Chemin critique
-- Aucune dépendance en amont : ce sprint ouvre le projet.
-- Livrable obligatoire avant SPRINT-001B. Sans les preuves de test, blocage automatique.
+   fmt:
+   cargo fmt --all
 
-## Risques & actions de secours
-- **Erreur "command not found"** après l'installation : assure-toi d'avoir relancé le terminal ou exécuté `source ~/.zshrc`.
-- **Solana CLI lente** : ajoute `export SOLANA_INSTALL_UPDATE_MANIFEST_SKIP=1` dans `~/.zshrc` pour éviter les mises à jour automatiques.
-- **Téléchargements bloqués** : connecte-toi à un hotspot 4G temporaire et relance l'étape concernée.
+   lint:
+   cargo clippy --all-targets --workspace -D warnings
+
+   test:
+   cargo test --workspace
+
+   audit:
+   cargo audit
+
+   deny:
+   cargo deny check bans licenses sources advisories
+
+   pgo-collect:
+   cargo build --profile release-with-pgo-collect
+
+   pgo-use:
+   cargo build --profile release-with-pgo-use
+
+   ci:
+   just fmt
+   just lint
+   just test
+   just audit
+   just deny
+   ```
+6. Capturer les sorties `rustc --version`, `cargo --version`, `solana --version`, `protoc --version` dans `docs/logs/sprint-001A.md`.
+
+## Exemples valides/invalides
+- ✅ Log `rustc 1.90.0 (abcd123 2024-05-01)` collé dans le journal.
+- ❌ Mention "installer rust" sans preuve exécutable.
+
+## Livrables
+- `rust-toolchain.toml` (contenu exact).
+- `justfile` initialisé (sera complété sprint 001B).
+- Journal `docs/logs/sprint-001A.md`.
+
+## Checklist de validation
+- `rustc --version` == `rustc 1.90.0`.
+- `solana --version` >= `1.18.16`.
+- `just ci` tourne jusqu’aux commandes `deny` (même si crates vides).
+- `docs/logs/sprint-001A.md` contient captures + checksum `shasum -a 256 rust-toolchain.toml`.
+
+---
+
+✅ `cargo build --release` (Rust **1.90**), **0 warnings**: `cargo clippy -D warnings`.
+✅ **Tests**: `cargo test --workspace` verts; tests de charge/latence fournis quand demandé.
+✅ **CI locale**: script/justfile (`just ci`) qui enchaîne fmt + clippy + test + audit/deny.
+✅ **Aucun** `todo!()`, `unimplemented!()`, `panic!()` ou commentaires “à faire plus tard”.
+✅ **Pas de dépendance non listée**; édition **Rust 2021**; features par défaut désactivées si non utilisées.
+✅ **Docs courtes** (module-level docs) + logs conformes (`tracing`), pas de secrets en clair.

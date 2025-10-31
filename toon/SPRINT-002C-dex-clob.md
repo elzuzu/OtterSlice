@@ -1,78 +1,68 @@
-# SPRINT-002C — Drivers DEX CLOB (Phoenix & OpenBook v2) `[P0]`
+**Directive Claude (à respecter à la lettre)**
 
-> **Objectif :** fournir un module unique capable de lire les carnets Phoenix/OpenBook et d'envoyer des ordres IOC/FAK. Pas de raccourci : suis chaque étape.
-> **Priorité** : **P0** — requis pour observer best bid/ask DEX et tester les ordres dry-run avant hedge réel.
+* Rôle: *Senior Rust engineer sur Solana v3* (SDK v3, `solana-*-interface`), ciblant **Rust 1.90** sur **macOS M-series**.
+* **Génère du code finalisé, zéro placeholder**: **interdit** d’émettre `todo!()`, `unimplemented!()`, `panic!()` non justifiés, sections vides, “exemples à adapter” ou pseudocode.
+* **Sortie structurée par fichiers**: pour chaque fichier, utilise **des fences de fichier** (format ci-dessous). Un fichier = contenu intégral.
+* **Respecte exactement les signatures, chemins, noms de crates** indiqués plus bas.
+* **N’ajoute aucune dépendance** non listée; **Rust stable 1.90 uniquement**.
+* Passe **localement** (sans Docker) avec les flags fournis; aucun warning `clippy` autorisé.
+* Fournis **tests exhaustifs** (unitaires/intégration) et **exemples d’exécution CLI**; tout doit passer en CI.
 
-## Pré-requis
-- SPRINT-001B : workspace prêt.
-- Avoir lu :
-  - Phoenix SDK : https://docs.phoenix.trade/developer-resources
-  - OpenBook v2 : https://github.com/openbook-dex/openbook-v2/blob/main/PROGRAM.md
-- Solana CLI configuré avec un compte dev (utilise `solana-keygen new --outfile ~/.config/otterslice/dev.json`).
+Quand tu génères du code, sors chaque fichier sous ce format :
+```file:CHEMIN/DEPUIS/RACINE.rs
+// contenu entier du fichier, prêt à compiler
+```
 
-## Livrables
-1. Module `crates/dex-clob` avec :
-   - `async fn load_markets(rpc: &RpcClient) -> Result<Vec<MarketInfo>>`
-   - `async fn subscribe_orderbook(market: &MarketInfo, sender: watch::Sender<ClobBook>)`
-   - `async fn place_order(params: PlaceOrderParams) -> Result<Signature>`
-2. Scripts CLI `cargo run -p cli -- --mode list-clob` et `--mode dry-run-clob`.
-3. Tests d'intégration simulant un envoi d'ordre sur le devnet (utilise `solana-test-validator`).
+Ne mets **aucun autre texte** entre les blocs `file:`. Termine par un récapitulatif.
 
-## Étapes guidées
-1. **Mettre à jour `Cargo.toml`**
-   - Dépendances clés :
-     ```toml
-     solana-client = "1.18"
-     solana-sdk = "1.18"
-     solana-transaction = "1.18"
-     solana-program = "1.18"
-     spl-token = { version = "4", features = ["no-entrypoint"] }
-     ```
-   - Ajoute `phoenix-sdk = { git = "https://github.com/Ellipsis-Labs/phoenix-rs", rev = "main" }` (pinne un commit précis via `rev`).
-   - Exécute `cargo check -p dex-clob`.
-2. **Décrire les marchés**
-   - Crée `struct MarketInfo { name: String, address: Pubkey, base_mint: Pubkey, quote_mint: Pubkey, lot_size: u64, tick_size: u64 }`.
-   - Charge les adresses depuis `config/markets.toml` (ajoute un champ `phoenix_market` et `openbook_market`).
-3. **Initialiser un `RpcClient`**
-   - Utilise `solana_client::nonblocking::rpc_client::RpcClient::new_with_commitment`.
-   - Lis les URLs depuis `config/default.toml` (`primary_http`).
-4. **Souscrire aux carnets**
-   - Phoenix : utilise `phoenix_sdk::client::PhoenixClient::subscribe_all_orderbooks`.
-   - OpenBook : combine `rpc.get_account_data_async` + `solana_account_decoder::parse_token::token_amount_to_ui_amount`.
-   - Normalise les niveaux dans une structure `ClobBook { bids: Vec<Level>, asks: Vec<Level>, slot: u64 }`.
-5. **Publier les updates**
-   - Chaque update doit être envoyé via `watch::Sender<ClobBook>`.
-   - Ajoute un champ `source` (`Phoenix` ou `OpenBook`) pour les logs.
-6. **Placer un ordre IOC**
-   - Implémente `PlaceOrderParams { market: MarketInfo, side: Side, price_lots: u64, size_lots: u64 }`.
-   - Construit la transaction avec `solana_sdk::instruction::Instruction` (Phoenix `place_order` ou OpenBook `place_order`).
-   - Utilise `ComputeBudgetInstruction::set_compute_unit_price(2_000)` pour éviter le throttling.
-   - Signe la transaction avec la clé `~/.config/otterslice/dev.json`.
-7. **Tests d'intégration**
-   - Lance un `solana-test-validator` local (commande : `solana-test-validator --reset --bpf-program ...`).
-   - Déploie les programmes mocks (Phoenix et OpenBook ne sont pas fournis : utilise les versions officielles ou un mock minimal qui renvoie une réponse).
-   - Pour simplifier, crée un test `#[ignore]` qui nécessite un validator local.
-8. **CLI de démonstration**
-   - `--mode list-clob` : affiche tous les marchés configurés avec leur lot/tick.
-   - `--mode dry-run-clob --market phoenix:SOL/USDC --side buy --price 55.12 --size 10` : calcule `price_lots` et `size_lots` puis affiche la transaction (ne l'envoie pas si `--dry`).
-   - Ajoute une option `--send` pour réaliser l'envoi réel (devnet uniquement pour l'instant).
-9. **Journalisation**
-   - Dans `docs/logs/sprint-002C.md`, consigne :
-     - Résultats de `cargo check -p dex-clob`.
-     - Sortie de `cargo run -p cli -- --mode list-clob`.
-     - Exemple de transaction signée (hash).
+# SPRINT-002C — Drivers DEX CLOB `[P0]`
 
-## Critères d'acceptation
-- ✅ `cargo check -p dex-clob` et `cargo test -p dex-clob` passent.
-- ✅ `cargo run -p cli -- --mode list-clob` liste au moins 6 marchés (Phoenix + OpenBook pour 3 paires).
-- ✅ Mode `dry-run-clob` calcule correctement `price_lots`/`size_lots` (vérifie avec la formule du README Phoenix).
-- ✅ Journal `docs/logs/sprint-002C.md` complété avec captures.
+## Objectifs
+- Implémenter lecteurs Phoenix/OpenBook (programmes `PHNXsHsS9GK1E58uQJX9m5L7F7mWJ9jH3UX77PG5Fv`, `openBk2L3sNjJKuX3sQYboJjQmpaq4Xrk3R9jFJmMq`).
+- Publier `ClobBook` normalisé :
+  ```rust
+  pub struct ClobBook {
+      pub market: Pubkey,
+      pub bids: Vec<Level>,
+      pub asks: Vec<Level>,
+      pub slot: u64,
+  }
+  ```
+- Préparer instructions d’ordre IOC (structures prêtes pour EPIC-003).
 
-## Dépendances
-- Utilise la configuration du SPRINT-001B.
-- Alimente le SPRINT-003D (hedge DEX) et SPRINT-003B (scanner spreads).
+## Schémas d’accounts
+- Phoenix :
+  - `Market` (header at offset 0, lot sizes),
+  - `EventQueue` (ring buffer, `SequenceNumber`),
+  - `Bid/Ask Queue`.
+- OpenBook :
+  - `Market` (header + vaults),
+  - `EventQueue` (linked events),
+  - `Bids`, `Asks` (slab).
 
-## Points d'attention
-- Respecte la précision des lots (arrondi vers le bas pour `buy`, vers le haut pour `sell`).
-- Pour Phoenix, la transaction doit inclure l'instruction `log_authority_check` si le programme l'exige (vérifie la doc).
-- Ne commit pas de clés privées : utilise les chemins configurables.
+## Tâches
+1. Mapper comptes -> structures Rust (`phoenix_sdk::state`, `openbook_dex::state` via patch forks).
+2. Implémenter conversion lot → prix/quantité :
+   - Phoenix : `price = price_lots * tick_size / quote_lot_size`, `size = num_base_lots * base_lot_size`.
+   - OpenBook : `price = price_lots * tick_size`, `size = base_quantity_lots * base_lot_size`.
+3. Tester `subscribe_orderbook` sur RPC (`get_program_accounts` + WS).
+4. Simuler pose d’ordre `ImmediateOrCancel` (sans exécution) : build instruction + check compute budget placeholder (sera rempli sprint 003).
+
+## Tests
+- `dex_clob/tests/phoenix_parse.rs` : fixture `fixtures/phoenix/market_account.bin`.
+- `dex_clob/tests/openbook_slab.rs` : charge `fixtures/openbook/bids.bin`.
+- `dex_clob/tests/slot_progress.rs` : assure `slot` monotone.
+- Comparer contre SDK officiel (écart prix < 1e-6).
+
+## DoD spécifique
+- `just replay -- --dataset fixtures/replay/openbook_depth.json` produit 5 updates/min.
+- `cargo bench -p dex-clob --bench slab_decode` >= 100k nodes/s.
+
+---
+
+✅ `cargo build --release` (Rust **1.90**), **0 warnings**: `cargo clippy -D warnings`.
+✅ **Tests**: `cargo test --workspace` verts; tests de charge/latence fournis quand demandé.
+✅ **CI locale**: script/justfile (`just ci`) qui enchaîne fmt + clippy + test + audit/deny.
+✅ **Aucun** `todo!()`, `unimplemented!()`, `panic!()` ou commentaires “à faire plus tard”.
+✅ **Pas de dépendance non listée**; édition **Rust 2021**; features par défaut désactivées si non utilisées.
+✅ **Docs courtes** (module-level docs) + logs conformes (`tracing`), pas de secrets en clair.
