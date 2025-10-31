@@ -43,6 +43,17 @@ pub struct PreTradeInput {
 3. Publier métriques `pretrade_reject_total` (labels `reason`).
 4. Tests pour chaque seuil (>= / >).
 
+## Guardrails & fenêtres
+| KPI | Seuil | Unité | Notes |
+| --- | --- | --- | --- |
+| `slippage_p95_bps` | ≤ 6 | bps | calcul rolling `ROLLING_HOURS` |
+| `slot_lag` | ≤ 1500 | slots | kill-switch si dépassé |
+| `ws_down_seconds` | ≤ 1.5 | s | déclenche kill-switch |
+| `max_drawdown_30j` | ≤ 5 | % | verrouillé par risk (SPRINT-004B) |
+
+- Exposer `ROLLING_HOURS` via TOML + override **ENV** (injecté par `scripts/run_bot_mainnet.sh`) pour le calcul des p95/DD.
+- Documenter les valeurs lues dans les logs (`tracing::info!`) au démarrage.
+
 ## Exemples valides/invalides
 - ✅ Rejet notional > 500k consigné dans `docs/logs/sprint-004A.md`.
 - ❌ Tolérance slot lag > 1500.
@@ -51,6 +62,7 @@ pub struct PreTradeInput {
 - `cargo test -p risk` couvre tous les cas.
 - `just ci` passe.
 - Métriques exportées vers `metrics/risk.prom`.
+- Guardrails (`ROLLING_HOURS`, seuils) affichés au boot + respect de la table ci-dessus.
 
 ---
 

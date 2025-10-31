@@ -33,6 +33,11 @@ Ne mets **aucun autre texte** entre les blocs `file:`. Termine par un récapitul
 3. Attendre confirmations `CancelAllResponse` (< 1 s).
 4. Mettre flag `kill_switch_engaged = true` (AtomicBool).
 
+## Guardrails & déclencheurs
+- Réutiliser la table de seuils (SPRINT-004A/004B) : `slippage_p95_bps ≤ 6`, `slot_lag ≤ 1500`, `ws_down_seconds ≤ 1.5`, `max_drawdown_30j ≤ 5%`.
+- Lire `ROLLING_HOURS` via ENV/TOML pour déterminer la fenêtre de calcul des déclencheurs.
+- Logguer la raison + valeurs métriques dans `docs/logs/sprint-004C.md` (tableau récap).
+
 ## Tests
 - `monitoring/tests/killswitch_idempotent.rs` : double trigger → seconde fois `AlreadyEngaged`.
 - `monitoring/tests/killswitch_api.rs` : mocks HTTP pour deletes.
@@ -46,6 +51,7 @@ Ne mets **aucun autre texte** entre les blocs `file:`. Termine par un récapitul
 - Tests kill-switch OK.
 - `just ci` passe.
 - CI grep TODO/UNIMPLEMENTED reste actif.
+- Log raison + guardrails lors des triggers; `ROLLING_HOURS` aligné avec risk.
 
 ---
 

@@ -47,6 +47,11 @@ pub struct CexExecution {
 4. Log `INFO` `cex_order_submitted` + `cex_order_filled`.
 5. Si `status = FILLED` → succès; `status = PARTIALLY_FILLED` + TIF FOK → `ExecutionError::Rejected`.
 
+## Paramètres finetuables & contraintes
+- **Expose** `SIZING_USD_PER_TRADE`, `MAX_SLIPPAGE_P95_BPS`, `TIME_IN_FORCE` depuis TOML + override **ENV** (`scripts/run_bot_mainnet.sh`).
+- Valider les bornes `config/tuning.toml`; refuser l’exécution (`ExecutionError::ConfigOutOfRange`) si hors bornes.
+- Logguer en début de run `latency_ms` médiane/p95 par épisode + valeurs de paramètres appliqués.
+
 ## Tests
 - `execution/tests/cex_executor.rs` : mocks HTTP (WireMock) pour codes `429`, `51009`, `30005`.
 - `execution/tests/latency.rs` : mesurer latence < 1 s.
@@ -63,6 +68,7 @@ pub struct CexExecution {
 - Tests & bench OK.
 - `just ci` passe.
 - Logs alignés (timezone UTC).
+- Traçabilité: log TIF/size/slippage + latence médiane/p95 par épisode; validation bornes active.
 
 ---
 

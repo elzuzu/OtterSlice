@@ -1,0 +1,16 @@
+[tuning.search]
+strategy = "bayes"
+budget_iters = 200
+epsilon = 0.08
+rolling_hours = 24
+
+[tuning.bounds]
+SPREAD_MIN_BPS = [12, 40]
+SPREAD_MIN_BPS_NAIVE = [40, 100]
+MARGE_SECURITE_BPS = [0, 12]
+GAS_TO_BPS_FACTOR = [0, 20]
+MAX_SLIPPAGE_P95_BPS = [3, 10]
+SIZING_USD_PER_TRADE = [50, 2000]
+CU_LIMIT = [80000, 400000]
+CU_PRICE_MICROLAMPORT = [20000, 400000]
+HEDGE_LEVERAGE = [0.5, 5.0]
